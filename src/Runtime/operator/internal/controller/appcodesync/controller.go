@@ -47,6 +47,10 @@ type appCodesFile struct {
 	AppCodes appCodesSection `json:"AppCodes"`
 }
 
+type rawAppCodesFile struct {
+	AppCodes map[string]json.RawMessage `json:"AppCodes"`
+}
+
 type appCodeEntry struct {
 	Code      string `json:"Code"`
 	ExpiresAt string `json:"ExpiresAt"`
@@ -115,13 +119,7 @@ var codeTypeSpecs = []codeTypeSpec{
 
 var errSecretUpdateRetryExhausted = errors.New("failed to update secret after conflict retries")
 var errGeneratedInvalidCodeIDLength = errors.New("generated invalid code ID length")
-
-var obsoleteAppCodesAnnotationKeys = map[string]struct{}{
-	"altinn.studio/app-codes-monthly-issued-at":                {},
-	"altinn.studio/app-codes-notificationcallback-issued-at":   {},
-	"altinn.studio/app-codes-paymentscallback-issued-at":       {},
-	"altinn.studio/app-codes-workflowenginecallback-issued-at": {},
-}
+var errUnmarshalAppCodeEntries = errors.New("unmarshal app-code entries")
 
 func NewReconciler(runtime rt.Runtime, k8sClient client.Client) *AppCodesSyncReconciler {
 	return &AppCodesSyncReconciler{
@@ -255,7 +253,7 @@ func (r *AppCodesSyncReconciler) syncSecret(ctx context.Context, secret *corev1.
 		currentFileBytes = secret.Data[appCodesFileName]
 	}
 
-	if slices.Equal(currentFileBytes, desiredFileBytes) && !hasObsoleteAppCodesAnnotations(secret.Annotations) {
+	if slices.Equal(currentFileBytes, desiredFileBytes) {
 		return nextRequeue, nil
 	}
 
@@ -265,26 +263,29 @@ func (r *AppCodesSyncReconciler) syncSecret(ctx context.Context, secret *corev1.
 	return nextRequeue, nil
 }
 
-func parseAppCodesFile(secret *corev1.Secret) (appCodesFile, error) {
+func parseAppCodesFile(secret *corev1.Secret) (rawAppCodesFile, error) {
 	if secret.Data == nil {
-		return appCodesFile{}, nil
+		return rawAppCodesFile{}, nil
 	}
 
 	content, ok := secret.Data[appCodesFileName]
 	if !ok || len(content) == 0 {
-		return appCodesFile{}, nil
+		return rawAppCodesFile{}, nil
 	}
 
-	var parsed appCodesFile
+	var parsed rawAppCodesFile
 	if err := json.Unmarshal(content, &parsed); err != nil {
-		return appCodesFile{}, fmt.Errorf("unmarshal app codes file: %w", err)
+		return rawAppCodesFile{}, fmt.Errorf("unmarshal app codes file: %w", err)
 	}
 
 	return parsed, nil
 }
 
-func parseCodesForSpec(file appCodesFile, spec codeTypeSpec, now time.Time) ([]appCode, error) {
-	entries := getCodeEntries(file.AppCodes, spec.PropertyName)
+func parseCodesForSpec(file rawAppCodesFile, spec codeTypeSpec, now time.Time) ([]appCode, error) {
+	entries, err := parseCodeEntriesForSpec(file, spec)
+	if err != nil {
+		return nil, err
+	}
 	if len(entries) == 0 {
 		return nil, nil
 	}
@@ -341,17 +342,35 @@ func parseCodesForSpec(file appCodesFile, spec codeTypeSpec, now time.Time) ([]a
 	return result, nil
 }
 
-func getCodeEntries(section appCodesSection, propertyName string) []appCodeEntry {
-	switch propertyName {
-	case "NotificationCallback":
-		return section.NotificationCallback
-	case "PaymentsCallback":
-		return section.PaymentsCallback
-	case "WorkflowEngineCallback":
-		return section.WorkflowEngineCallback
-	default:
-		return nil
+func parseCodeEntriesForSpec(file rawAppCodesFile, spec codeTypeSpec) ([]appCodeEntry, error) {
+	if len(file.AppCodes) == 0 {
+		return nil, nil
 	}
+
+	raw, ok := file.AppCodes[spec.PropertyName]
+	if !ok || len(raw) == 0 {
+		return nil, nil
+	}
+
+	var entries []appCodeEntry
+	if err := json.Unmarshal(raw, &entries); err == nil {
+		return entries, nil
+	}
+
+	var legacyCodes []string
+	if err := json.Unmarshal(raw, &legacyCodes); err == nil {
+		return legacyStringEntries(legacyCodes), nil
+	}
+
+	return nil, fmt.Errorf("%w for %s", errUnmarshalAppCodeEntries, spec.PropertyName)
+}
+
+func legacyStringEntries(values []string) []appCodeEntry {
+	entries := make([]appCodeEntry, 0, len(values))
+	for _, value := range values {
+		entries = append(entries, appCodeEntry{Code: value})
+	}
+	return entries
 }
 
 func setCodeEntries(section *appCodesSection, propertyName string, values []appCodeEntry) {
@@ -498,23 +517,6 @@ func marshalCodeEntries(codes []appCode) []appCodeEntry {
 	return values
 }
 
-func hasObsoleteAppCodesAnnotations(annotations map[string]string) bool {
-	for key := range annotations {
-		if _, ok := obsoleteAppCodesAnnotationKeys[key]; ok {
-			return true
-		}
-	}
-	return false
-}
-
-func removeObsoleteAppCodesAnnotations(annotations map[string]string) {
-	for key := range annotations {
-		if _, ok := obsoleteAppCodesAnnotationKeys[key]; ok {
-			delete(annotations, key)
-		}
-	}
-}
-
 func isValidURLSafeToken(value string, expectedLength int) bool {
 	if len(value) != expectedLength {
 		return false
@@ -551,12 +553,8 @@ func (r *AppCodesSyncReconciler) updateSecretWithRetry(
 		if updatedSecret.Data == nil {
 			updatedSecret.Data = make(map[string][]byte)
 		}
-		if updatedSecret.Annotations == nil {
-			updatedSecret.Annotations = make(map[string]string)
-		}
 
 		updatedSecret.Data[appCodesFileName] = appCodesFile
-		removeObsoleteAppCodesAnnotations(updatedSecret.Annotations)
 
 		err := r.k8sClient.Update(ctx, updatedSecret)
 		if err == nil {
