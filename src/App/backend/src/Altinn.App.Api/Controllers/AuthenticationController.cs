@@ -1,6 +1,9 @@
+using System.Runtime.Caching.Hosting;
+using System.Web;
 using Altinn.App.Core.Configuration;
 using Altinn.App.Core.Constants;
 using Altinn.App.Core.Internal.Auth;
+using Altinn.App.Core.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -14,18 +17,34 @@ public class AuthenticationController : ControllerBase
 {
     private readonly IAuthenticationClient _authenticationClient;
     private readonly GeneralSettings _settings;
+    private readonly PlatformSettings _platformSettings;
+    private readonly AppSettings _appSettings;
+	private readonly IWebHostEnvironment _env;
+    private readonly AppIdentifier _appId;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AuthenticationController"/> class
     /// </summary>
-    public AuthenticationController(IAuthenticationClient authenticationClient, IOptions<GeneralSettings> settings)
+    public AuthenticationController(
+        IAuthenticationClient authenticationClient,
+        IOptions<GeneralSettings> settings,
+        IOptions<PlatformSettings> platformSettings,
+        IOptions<AppSettings> appSettings,
+		IWebHostEnvironment env,
+        AppIdentifier appId
+    )
     {
         _authenticationClient = authenticationClient;
         _settings = settings.Value;
+        _platformSettings = platformSettings.Value;
+        _appSettings = appSettings.Value;
+		_env = env;
+        _appId = appId;
     }
 
     /// <summary>
-    /// Refreshes the AltinnStudioRuntime JwtToken when not in AltinnStudio mode.
+    /// Refreshes the AltinnStudioRuntime JwtToken when not in AltinnStudio mode. It also return
+    /// a redirect url when
     /// </summary>
     /// <returns>Ok result with updated token.</returns>
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -51,7 +70,14 @@ public class AuthenticationController : ControllerBase
             return Ok();
         }
 
-        return BadRequest();
+		string scheme = _env.IsDevelopment() ? "http" : "https";
+		string goToUrl = HttpUtility.UrlEncode($"{scheme}://{Request.Host}/{_appId.Org}/{_appId.App}");
+        string redirectUrl = $"{_platformSettings.ApiAuthenticationEndpoint}authentication?goto={goToUrl}";
+        if (!string.IsNullOrWhiteSpace(_appSettings.AppOidcProvider))
+        {
+            redirectUrl += "&iss=" + _appSettings.AppOidcProvider;
+        }
+        return BadRequest(new { redirectUrl = redirectUrl });
     }
 
     /// <summary>
