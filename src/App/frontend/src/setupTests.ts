@@ -84,6 +84,10 @@ beforeEach(() => {
     availableLanguages: [{ language: 'nb' }],
     selectedParty: getPartyMock(),
     textResources: { language: 'nb', resources: getTextResourcesMock() },
+    platformFrontendSettings: {
+      authenticationUrl: 'https://platform.altinn.no/authentication/api/v1/authentication',
+      postalCodesUrl: 'https://altinncdn.no/postcodes/registry.json',
+    },
   };
 });
 

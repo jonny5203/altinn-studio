@@ -29,7 +29,8 @@ internal sealed class BootstrapGlobalService(
     IAuthenticationContext _authenticationContext,
     IHttpContextAccessor _httpContextAccessor,
     IAltinnCdnClient _altinnCdnClient,
-    ILogger<BootstrapGlobalService> _logger
+    ILogger<BootstrapGlobalService> _logger,
+    IOptionsMonitor<PlatformSettings> _platformSettings
 ) : IBootstrapGlobalService
 {
     private static readonly JsonSerializerOptions _jsonSerializerOptions = new()
@@ -76,6 +77,11 @@ internal sealed class BootstrapGlobalService(
 
         var (orgName, orgLogoUrl) = await orgDataTask;
 
+        var frontendSettings = _platformFrontendSettings.CurrentValue;
+        var authenticationUrl =
+            frontendSettings.AuthenticationUrl
+            ?? new Uri(new Uri(_platformSettings.CurrentValue.ApiAuthenticationEndpoint), "authentication");
+
         return new BootstrapGlobalResponse
         {
             AvailableLanguages = await availableLanguagesTask,
@@ -89,7 +95,11 @@ internal sealed class BootstrapGlobalService(
             OrgName = orgName,
             OrgLogoUrl = orgLogoUrl,
             SelectedParty = await currentPartyTask,
-            PlatformFrontendSettings = _platformFrontendSettings.CurrentValue,
+            PlatformFrontendSettings = new PlatformFrontendSettings
+            {
+                PostalCodesUrl = frontendSettings.PostalCodesUrl,
+                AuthenticationUrl = authenticationUrl,
+            },
         };
     }
 
