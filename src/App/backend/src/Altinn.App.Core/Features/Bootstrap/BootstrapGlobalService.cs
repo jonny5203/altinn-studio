@@ -78,9 +78,11 @@ internal sealed class BootstrapGlobalService(
         var (orgName, orgLogoUrl) = await orgDataTask;
 
         var frontendSettings = _platformFrontendSettings.CurrentValue;
+        var normalizedAuthenticationEndpoint =
+            _platformSettings.CurrentValue.ApiAuthenticationEndpoint.TrimEnd('/') + "/";
         var authenticationUrl =
             frontendSettings.AuthenticationUrl
-            ?? new Uri(new Uri(_platformSettings.CurrentValue.ApiAuthenticationEndpoint), "authentication");
+            ?? new Uri(new Uri(normalizedAuthenticationEndpoint), "authentication");
 
         return new BootstrapGlobalResponse
         {
