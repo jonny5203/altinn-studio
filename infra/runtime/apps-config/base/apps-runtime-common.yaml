@@ -21,7 +21,8 @@ data:
         "ServiceEndpointUri": "http://pdf-generator.pdf.svc.cluster.local/pdf"
       },
       "PlatformFrontendSettings": {
-        "PostalCodesUrl": "https://altinncdn.no/postcodes/registry.json"
+        "PostalCodesUrl": "https://altinncdn.no/postcodes/registry.json",
+        "AuthenticationUrl": "https://platform.altinn.no/authentication/api/v1/authentication"
       }
     }
 ---

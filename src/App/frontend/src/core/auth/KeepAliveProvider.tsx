@@ -8,22 +8,17 @@ import { createContext } from 'src/core/contexts/context';
 import { useApplicationSettings } from 'src/features/applicationSettings/ApplicationSettingsProvider';
 import { useAllowAnonymous } from 'src/features/stateless/getAllowAnonymous';
 import { getEnvironmentLoginUrl } from 'src/utils/urls/appUrlHelper';
-import type { AxiosError } from 'axios';
 
 const ONE_MINUTE_IN_MILLISECONDS = 60000;
 const TEN_MINUTE_IN_MILLISECONDS = ONE_MINUTE_IN_MILLISECONDS * 10;
 
-type KeepAliveErrorResponse = {
-  redirectUrl?: string;
-};
-
-const redirectToLogin = (appOidcProvider: string | null, redirectUrl: string | undefined): void => {
-  window.location.href = redirectUrl ?? getEnvironmentLoginUrl(appOidcProvider);
+const redirectToLogin = (appOidcProvider: string | null): void => {
+  window.location.href = getEnvironmentLoginUrl(appOidcProvider);
 };
 
 const useRefreshJwtTokenQuery = (appOidcProvider: string | null | undefined, allowAnonymous: boolean | undefined) => {
   const { fetchRefreshJwtToken } = useAppQueries();
-  const utils = useQuery<unknown, AxiosError<KeepAliveErrorResponse>>({
+  const utils = useQuery({
     enabled: allowAnonymous === false, // Only refresh token at page load if allowAnonymous === false
     refetchOnWindowFocus: true,
     refetchInterval: TEN_MINUTE_IN_MILLISECONDS, // Refresh token every 10 minutes only if the tab is focused
@@ -34,11 +29,11 @@ const useRefreshJwtTokenQuery = (appOidcProvider: string | null | undefined, all
 
   useEffect(() => {
     if (!utils.error) {
-      /* Ignore if there is no error */
+      return;
     }
 
     try {
-      redirectToLogin(appOidcProvider || null, utils.error?.response?.data?.redirectUrl);
+      redirectToLogin(appOidcProvider || null);
     } catch {
       console.error(utils.error);
     }

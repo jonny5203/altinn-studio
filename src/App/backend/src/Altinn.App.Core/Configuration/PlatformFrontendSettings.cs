@@ -10,4 +10,5 @@ internal class PlatformFrontendSettings
     /// URL for the postal codes registry.
     /// </summary>
     public Uri PostalCodesUrl { get; set; } = new("https://altinncdn.no/postcodes/registry.json");
+    public Uri AuthenticationUrl { get; set; } = new("https://altinncdn.no/authnetication.json");
 }
