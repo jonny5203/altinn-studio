@@ -5,7 +5,7 @@ import cn from 'classnames';
 
 import { Button } from 'src/app-components/Button/Button';
 import classes from 'src/components/presentation/BackNavigationButton.module.css';
-import { useApplicationMetadata } from 'src/features/applicationMetadata/ApplicationMetadataProvider';
+import { getApplicationMetadata } from 'src/features/applicationMetadata';
 import { MessageBoxConfigEvaluator } from 'src/features/applicationMetadata/messageBoxConfig';
 import { useInstanceDataQuery } from 'src/features/instance/InstanceContext';
 import { Lang } from 'src/features/language/Lang';
@@ -27,7 +27,7 @@ export function BackNavigationButton(props: { className?: string }) {
   const isExitingSubform = useIsThisProcessing('exit-subform');
   const isAnyProcessing = useIsAnyProcessing();
 
-  const applicationMetadata = useApplicationMetadata();
+  const applicationMetadata = getApplicationMetadata();
   const dataValues = useInstanceDataQuery({ select: (instance) => instance.dataValues }).data;
   const dialogId = getDialogIdFromDataValues(dataValues);
   const messageBoxUrl = getMessageBoxUrl(party?.partyId, dialogId);
