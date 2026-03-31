@@ -1,5 +1,5 @@
 {
-  "language": "nb",
+  "language": "en",
   "resources": [
     {
       "id": "appName",
@@ -19,349 +19,343 @@
     },
     {
       "id": "Header.Component",
-      "value": "Komponent"
+      "value": "component"
     },
     {
       "id": "Header.Summary",
-      "value": "Slik ser det ut i oppsummering"
+      "value": ""
     },
     {
       "id": "Header.Summary2",
-      "value": "Slik ser det ut i summary 2"
+      "value": ""
     },
     {
       "id": "Header.Summary2.Compact",
-      "value": "Slik ser det ut i summary 2 med kompaktvisning"
+      "value": ""
     },
     {
       "id": "InputPage",
-      "value": "Kort svar"
+      "value": ""
     },
     {
       "id": "DividerPage",
-      "value": "Divider"
+      "value": ""
     },
     {
       "id": "InputPage.Input.title",
-      "value": "Eksempel på kort svar komponent"
+      "value": ""
     },
     {
       "id": "InputPage.Input.Grid.title-1",
-      "value": "Eksempel på kort svar komponent med grid"
+      "value": ""
     },
     {
       "id": "InputPage.Input.Grid.title-2",
-      "value": "Enda et eksempel på kort svar komponent med grid"
+      "value": ""
     },
     {
       "id": "InputPage.Input.Grid.title.long",
-      "value": "Eksempel på kort svar komponent med grid på kun selve inputfeltet og kjempelang tittel som forklarer i slitsomt nøye detaljer hva som skal fylles ut i dette feltet, slik at teksten bryter over flere linjer"
+      "value": ""
     },
     {
       "id": "ImageUploadPage.ImageUpload.title",
-      "value": "Eksempel på filopplastings komponent."
+      "value": ""
     },
     {
       "id": "TextareaPage",
-      "value": "Langt svar"
+      "value": ""
     },
     {
       "id": "ImageUploadPage",
-      "value": "Bildeopplasting"
+      "value": ""
     },
     {
       "id": "TextareaPage.Textarea.title",
-      "value": "Eksempel på langt svar komponent."
+      "value": ""
     },
     {
       "id": "RadioButtonsPage",
-      "value": "Radioknapper"
+      "value": ""
     },
     {
       "id": "RadioButtonsPage.RadioButtons.title",
-      "value": "Hva slags kjøretøy har du?"
+      "value": ""
     },
     {
       "id": "DropdownPage.Dropdown.title",
-      "value": "Hva slags kjøretøy har du?"
+      "value": ""
     },
     {
       "id": "Group.Title",
-      "value": "Gruppetittel"
+      "value": ""
     },
     {
       "id": "Group.Description",
-      "value": "Gruppebeskrivelse"
+      "value": ""
     },
     {
       "id": "RepeatingGroup.Name",
-      "value": "Navn"
+      "value": ""
     },
     {
       "id": "RepeatingGroup.Points",
-      "value": "Poeng"
+      "value": ""
     },
     {
       "id": "InputPage.Summary2.emptyFieldText",
-      "value": "Dette er test"
+      "value": ""
     },
     {
       "id": "RepeatingGroup.Date",
-      "value": "Dato"
+      "value": ""
     },
     {
       "id": "RepeatingGroup.Cars",
-      "value": "Biler"
+      "value": ""
     },
     {
       "id": "RepeatingGroup.CarBrand",
-      "value": "Bilmerke"
+      "value": ""
     },
     {
       "id": "RepeatingGroup.CarModel",
-      "value": "Modell"
+      "value": ""
     },
     {
       "id": "RepeatingGroup.ModelYear",
-      "value": "Årsmodell"
+      "value": ""
     },
     {
       "id": "ListPage",
-      "value": "Liste (tabell)"
+      "value": ""
     },
     {
       "id": "ListPage.List.title",
-      "value": "Min Liste"
+      "value": ""
     },
     {
       "id": "ListPage.List2.title",
-      "value": "Min Liste med Checkboxer"
+      "value": ""
     },
     {
       "id": "MapPage.Map.title",
-      "value": "Min Kartkomponent"
+      "value": ""
     },
     {
       "id": "MapPage",
-      "value": "Kart"
+      "value": ""
     },
     {
       "id": "CheckboxesPage",
-      "value": "Avkryssningsbokser"
+      "value": ""
     },
     {
       "id": "CheckboxesPage.Checkboxes.title",
-      "value": "Hva skal kjøretøyet brukes til?"
+      "value": ""
     },
     {
       "id": "Grid.Input.Title",
-      "value": "My input field"
+      "value": ""
     },
     {
       "id": "MultipleSelectPage.MultipleSelect.title",
-      "value": "Hva skal kjøretøyet brukes til?"
+      "value": ""
     },
     {
       "id": "GroupPage",
-      "value": "Gruppe"
+      "value": ""
     },
     {
       "id": "RepeatingGroupPage",
-      "value": "Repeterende gruppe"
+      "value": ""
     },
     {
       "id": "GridPage",
-      "value": "Grid"
+      "value": ""
     },
     {
       "id": "GroupPage-Group-Header.title",
-      "value": "Her ligger en tekst inne i en gruppe"
+      "value": ""
     },
     {
       "id": "AddressPage",
-      "value": "Adresse"
+      "value": ""
     },
     {
       "id": "SummaryPage",
-      "value": "Oppsummering 2.0"
+      "value": ""
     },
     {
       "id": "Side4.Button-qHGXDg.title",
-      "value": "Send inn"
+      "value": ""
     },
     {
       "id": "Side4.Header-tZjZtv.title",
-      "value": "Eksempel på ny oppsummeringskomponent:"
+      "value": ""
     },
     {
       "id": "Side4.Header-in-new-summary",
-      "value": "Jeg skal rendres inne i ny summary:"
+      "value": ""
     },
     {
       "id": "undefined",
-      "value": "Her ligger en tittel inne i en gruppe"
+      "value": ""
     },
     {
       "id": "RenderPreviousTask",
-      "value": "Oppsummering av tidligere Task"
+      "value": ""
     },
     {
       "id": "RenderSpecificPageFromPreviousTask",
-      "value": "Oppsummering av side fra tidligere Task"
+      "value": ""
     },
     {
       "id": "RenderSpecificComponentFromPreviousTask",
-      "value": "Oppsummering av komponent fra tidligere Task"
+      "value": ""
     },
     {
       "id": "reasons.related",
-      "value": "Slektskap"
+      "value": ""
     },
     {
       "id": "reasons.adoptive",
-      "value": "Adoptivforelders etternavn eller mellomnavn"
+      "value": ""
     },
     {
       "id": "reasons.stepParents",
-      "value": "Ste- eller fosterforeldres etternavn eller mellomnavn"
+      "value": ""
     },
     {
       "id": "reasons.spouse",
-      "value": "Ektefelles etternavn eller mellomnavn"
+      "value": ""
     },
     {
       "id": "reasons.cohabitant",
-      "value": "Samboers etternavn eller mellomnavn"
+      "value": ""
     },
     {
       "id": "reasons.pastName",
-      "value": "Tidligere etternavn eller mellomnavn"
+      "value": ""
     },
     {
       "id": "reasons.farm",
-      "value": "Gårdsbruk"
+      "value": ""
     },
     {
       "id": "reasons.newName",
-      "value": "Jeg tror navnet er nytt i Norge"
+      "value": ""
     },
     {
       "id": "reasons.other",
-      "value": "Annen begrunnelse "
+      "value": ""
     },
     {
       "id": "appLogo.url",
-      "value": "assets/altinn-logo.svg"
+      "value": ""
     },
     {
       "id": "MultipleSelectPage",
-      "value": "Flervalg"
+      "value": ""
     },
     {
       "id": "DropdownPage",
-      "value": "Dropdown"
+      "value": ""
     },
     {
       "id": "FileUploadPage",
-      "value": "Filopplasting"
+      "value": ""
     },
     {
       "id": "TabsPage",
-      "value": "Tabs"
+      "value": ""
     },
     {
       "id": "LikertPage",
-      "value": "Likert"
+      "value": ""
     },
     {
       "id": "ButtonPage",
-      "value": "Knapp"
+      "value": ""
     },
     {
       "id": "LinkPage",
-      "value": "Link"
+      "value": ""
     },
     {
       "id": "DatepickerPage",
-      "value": "Datepicker"
+      "value": ""
     },
     {
       "id": "NumberPage",
-      "value": "Number"
+      "value": ""
     },
     {
       "id": "TextPage",
-      "value": "Text"
+      "value": ""
     },
     {
       "id": "DatePage",
-      "value": "Date"
+      "value": ""
     },
     {
       "id": "question-1",
-      "value": "Gjør du leksene dine?"
+      "value": ""
     },
     {
       "id": "question-2",
-      "value": "Fungerer kalkulatoren din?"
+      "value": ""
     },
     {
       "id": "question-3",
-      "value": "Er pulten din ryddig?"
+      "value": ""
     },
     {
       "id": "question-4",
-      "value": "Hører skolen på elevenes forslag?"
+      "value": ""
     },
     {
       "id": "question-5",
-      "value": "Er dere elever med på å lage regler for hvordan dere skal ha det i klassen/gruppa?"
+      "value": ""
     },
     {
       "id": "question-6",
-      "value": "De voksne på skolen synes det er viktig at vi elever er greie med hverandre."
+      "value": ""
     },
     {
       "id": "likert-row-title",
-      "value": "{0}",
-      "variables": [
-        {
-          "key": "LikertExample[{0}].Id",
-          "dataSource": "dataModel.default"
-        }
-      ]
+      "value": ""
     },
     {
       "id": "CardsPage",
-      "value": "Cards"
+      "value": ""
     },
     {
       "id": "CardsPage-image-alt-text",
-      "value": "Bilde av et varemerke"
+      "value": ""
     },
     {
       "id": "CardsPage-Lydmerke-alt-text",
-      "value": "Lyd av et varemerke"
+      "value": ""
     },
     {
       "id": "CardsPage-Videomerke-alt-text",
-      "value": "Video av et varemerke"
+      "value": ""
     },
     {
       "id": "CardsPage-Number-Input",
-      "value": "Skriv et tall"
+      "value": ""
     },
     {
       "id": "CardsPage-Percentage-Input",
-      "value": "Skriv en prosent"
+      "value": ""
     },
     {
       "id": "CardsPage-text-Input",
-      "value": "Skriv et navn"
+      "value": ""
     },
     {
       "id": "AttachmentListPage",
-      "value": "Vedleggsliste"
+      "value": ""
     }
   ]
 }
