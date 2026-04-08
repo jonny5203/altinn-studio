@@ -1,4 +1,5 @@
 import { IgnoredValidators } from 'src/features/validation';
+import { GlobalData } from 'src/GlobalData';
 import { getQueryStringFromObject } from 'src/utils/urls/urlHelper';
 
 const { org, app } = window;
@@ -108,8 +109,8 @@ export const getEnvironmentLoginUrl = (oidcProvider: string | null) => {
   if (oidcProvider != null && oidcProvider != '') {
     issParam = `&iss=${oidcProvider}`;
   }
-  if (window.altinnAppGlobalData.platformFrontendSettings.authenticationUrl) {
-    return `${window.altinnAppGlobalData.platformFrontendSettings.authenticationUrl}?goto=${encodedGoToUrl}${issParam}`;
+  if (GlobalData.platformFrontendSettings.authenticationUrl) {
+    return `${GlobalData.platformFrontendSettings.authenticationUrl}?goto=${encodedGoToUrl}${issParam}`;
   }
   // TODO: what if altinn3?
   throw new Error('Unknown domain');

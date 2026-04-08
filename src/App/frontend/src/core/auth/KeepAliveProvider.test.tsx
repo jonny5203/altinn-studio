@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { waitFor } from '@testing-library/react';
 
 import { getApplicationMetadataMock } from 'src/__mocks__/getApplicationMetadataMock';
@@ -13,7 +14,7 @@ const resetWindowLocation = () => {
   const oldWindowLocation = window.location;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   delete (window as any).location;
-  // @ts-expect-error
+  // @ts-expect-error mocking window.location for redirect assertions
   window.location = {
     ...oldWindowLocation,
     origin: 'https://ttd.apps.altinn.no',
@@ -37,11 +38,6 @@ const renderKeepAlive = async ({
   window.altinnAppGlobalData.frontendSettings = getApplicationSettingsMock({
     appOidcProvider: 'idporten',
   });
-
-  window.altinnAppGlobalData.platformFrontendSettings = {
-    authenticationUrl: 'https://platform.altinn.no/authentication/api/v1/authentication',
-    postalCodesUrl: 'https://altinncdn.no/postcodes/registry.json',
-  };
 
   window.altinnAppGlobalData.applicationMetadata = getApplicationMetadataMock({
     onEntry: { show: stateless ? (allowAnonymous ? 'stateless-anon' : 'stateless') : 'new-instance' },

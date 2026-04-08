@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Altinn.App.Core.Configuration;
+using Altinn.App.Core.Exceptions;
 using Altinn.App.Core.Extensions;
 using Altinn.App.Core.Features.Auth;
 using Altinn.App.Core.Features.Bootstrap.Models;
@@ -31,7 +32,7 @@ internal sealed class BootstrapGlobalService(
     IAltinnCdnClient _altinnCdnClient,
     ILogger<BootstrapGlobalService> _logger,
     IOptionsMonitor<PlatformSettings> _platformSettings
-) : IBootstrapGlobalService
+)
 {
     private static readonly JsonSerializerOptions _jsonSerializerOptions = new()
     {
@@ -78,11 +79,13 @@ internal sealed class BootstrapGlobalService(
         var (orgName, orgLogoUrl) = await orgDataTask;
 
         var frontendSettings = _platformFrontendSettings.CurrentValue;
-        var normalizedAuthenticationEndpoint =
-            _platformSettings.CurrentValue.ApiAuthenticationEndpoint.TrimEnd('/') + "/";
-        var authenticationUrl =
-            frontendSettings.AuthenticationUrl
-            ?? new Uri(new Uri(normalizedAuthenticationEndpoint), "authentication");
+        var authenticationUrl = frontendSettings.AuthenticationUrl;
+        if (authenticationUrl is null)
+        {
+            throw new ConfigurationException(
+                "PlatformFrontendSettings.AuthenticationUrl must be configured."
+            );
+        }
 
         return new BootstrapGlobalResponse
         {
