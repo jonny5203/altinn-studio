@@ -26,14 +26,12 @@ import {
   getUpdateFileTagsUrl,
   getValidationUrl,
   refreshJwtTokenUrl,
-  textResourcesUrl,
 } from 'src/utils/urls/appUrlHelper';
 import { customEncodeURI } from 'src/utils/urls/urlHelper';
 import type { DataPostResponse } from 'src/features/attachments';
 import type { IDataList } from 'src/features/dataLists';
 import type { FormBootstrapResponse } from 'src/features/formBootstrap/types';
 import type { IDataModelMultiPatchRequest, IDataModelMultiPatchResponse } from 'src/features/formData/types';
-import type { ITextResourceResult } from 'src/features/language/textResources';
 import type { OrderDetails, PaymentResponsePayload } from 'src/features/payment/types';
 import type { IPdfFormat } from 'src/features/pdf/types';
 import type { BackendValidationIssue, BackendValidationIssuesWithSource } from 'src/features/validation';
@@ -182,9 +180,6 @@ export const fetchFormData = (url: string, options?: AxiosRequestConfig): Promis
 
 export const fetchPdfFormat = (instanceId: string, dataElementId: string): Promise<IPdfFormat> =>
   httpGet(getPdfFormatUrl(instanceId, dataElementId));
-
-export const fetchTextResources = (selectedLanguage: string): Promise<ITextResourceResult> =>
-  httpGet(textResourcesUrl(selectedLanguage));
 
 export const fetchPaymentInformation = (instanceId: string, language?: string): Promise<PaymentResponsePayload> =>
   httpGet(getPaymentInformationUrl(instanceId, language));
