@@ -167,7 +167,7 @@ export const doPostStatelessFormData = async (
  */
 
 export const fetchLogo = async (): Promise<string> =>
-  (await axios.get('https://altinncdn.no/img/Altinn-logo-blue.svg')).data;
+  (await axios.get(GlobalData.platformFrontendSettings.altinnLogoUrl)).data;
 
 export const fetchProcessState = (instanceId: string): Promise<IProcess> => httpGet(getProcessStateUrl(instanceId));
 
