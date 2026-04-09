@@ -78,8 +78,8 @@ internal sealed class BootstrapGlobalService(
 
         var (orgName, orgLogoUrl) = await orgDataTask;
 
-        var frontendSettings = _platformFrontendSettings.CurrentValue;
-        var authenticationUrl = frontendSettings.AuthenticationUrl;
+        var platformFrontendSettings = _platformFrontendSettings.CurrentValue;
+        var authenticationUrl = platformFrontendSettings.AuthenticationUrl;
         if (authenticationUrl is null)
         {
             throw new ConfigurationException(
@@ -100,11 +100,7 @@ internal sealed class BootstrapGlobalService(
             OrgName = orgName,
             OrgLogoUrl = orgLogoUrl,
             SelectedParty = await currentPartyTask,
-            PlatformFrontendSettings = new PlatformFrontendSettings
-            {
-                PostalCodesUrl = frontendSettings.PostalCodesUrl,
-                AuthenticationUrl = authenticationUrl,
-            },
+            PlatformFrontendSettings = platformFrontendSettings
         };
     }
 
