@@ -30,8 +30,7 @@ internal sealed class BootstrapGlobalService(
     IAuthenticationContext _authenticationContext,
     IHttpContextAccessor _httpContextAccessor,
     IAltinnCdnClient _altinnCdnClient,
-    ILogger<BootstrapGlobalService> _logger,
-    IOptionsMonitor<PlatformSettings> _platformSettings
+    ILogger<BootstrapGlobalService> _logger
 )
 {
     private static readonly JsonSerializerOptions _jsonSerializerOptions = new()
@@ -80,9 +79,7 @@ internal sealed class BootstrapGlobalService(
 
         if (_platformFrontendSettings.CurrentValue.AuthenticationUrl is null)
         {
-            throw new ConfigurationException(
-                "PlatformFrontendSettings.AuthenticationUrl must be configured."
-            );
+            throw new ConfigurationException("PlatformFrontendSettings.AuthenticationUrl must be configured.");
         }
 
         return new BootstrapGlobalResponse
@@ -98,7 +95,7 @@ internal sealed class BootstrapGlobalService(
             OrgName = orgName,
             OrgLogoUrl = orgLogoUrl,
             SelectedParty = await currentPartyTask,
-            PlatformFrontendSettings = _platformFrontendSettings.CurrentValue
+            PlatformFrontendSettings = _platformFrontendSettings.CurrentValue,
         };
     }
 

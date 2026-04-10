@@ -11,7 +11,11 @@ internal class PlatformFrontendSettings
     /// </summary>
     public Uri PostalCodesUrl { get; set; } = new("https://altinncdn.no/postcodes/registry.json");
 
+    /// <summary>
+    /// URL for the authentication url stored in kubernetes store
+    /// </summary>
     public Uri? AuthenticationUrl { get; set; }
+
     /// <summary>
     /// Base URL for the app frontend CDN.
     /// </summary>

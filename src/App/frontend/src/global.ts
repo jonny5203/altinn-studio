@@ -30,7 +30,6 @@ export type AltinnAppGlobalData = {
   textResources?: ITextResourceResult;
   orgName?: OrgName;
   orgLogoUrl?: string;
-  platformFrontendSettings: IPlatformFrontendSettings;
 };
 
 declare global {

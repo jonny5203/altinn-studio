@@ -81,6 +81,7 @@ beforeEach(() => {
       appFrontendCdnBaseUrl: 'https://altinncdn.no/toolkits/altinn-app-frontend',
       altinnLogoUrl: 'https://altinncdn.no/img/Altinn-logo-blue.svg',
       helpCircleIllustrationUrl: 'https://altinncdn.no/img/illustration-help-circle.svg',
+      authenticationUrl: 'https://platform.altinn.no/authentication/api/v1/authentication',
     },
     footer: getFooterLayoutMock(),
     ui: getUiConfigMock(),
@@ -88,10 +89,6 @@ beforeEach(() => {
     availableLanguages: [{ language: 'nb' }],
     selectedParty: getPartyMock(),
     textResources: { language: 'nb', resources: getTextResourcesMock() },
-    platformFrontendSettings: {
-      authenticationUrl: 'https://platform.altinn.no/authentication/api/v1/authentication',
-      postalCodesUrl: 'https://altinncdn.no/postcodes/registry.json',
-    },
   };
 });
 
