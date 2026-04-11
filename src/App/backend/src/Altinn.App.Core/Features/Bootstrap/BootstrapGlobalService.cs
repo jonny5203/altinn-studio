@@ -77,7 +77,8 @@ internal sealed class BootstrapGlobalService(
 
         var (orgName, orgLogoUrl) = await orgDataTask;
 
-        if (_platformFrontendSettings.CurrentValue.AuthenticationUrl is null)
+        var platformFrontendSettings = _platformFrontendSettings.CurrentValue;
+        if (platformFrontendSettings.AuthenticationUrl is null)
         {
             throw new ConfigurationException("PlatformFrontendSettings.AuthenticationUrl must be configured.");
         }
@@ -95,7 +96,7 @@ internal sealed class BootstrapGlobalService(
             OrgName = orgName,
             OrgLogoUrl = orgLogoUrl,
             SelectedParty = await currentPartyTask,
-            PlatformFrontendSettings = _platformFrontendSettings.CurrentValue,
+            PlatformFrontendSettings = platformFrontendSettings,
         };
     }
 

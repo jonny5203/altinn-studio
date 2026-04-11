@@ -107,8 +107,9 @@ export const getEnvironmentLoginUrl = (oidcProvider: string | null) => {
   if (oidcProvider != null && oidcProvider != '') {
     issParam = `&iss=${oidcProvider}`;
   }
-  if (GlobalData.platformFrontendSettings.authenticationUrl) {
-    return `${GlobalData.platformFrontendSettings.authenticationUrl}?goto=${encodedGoToUrl}${issParam}`;
+  const authenticationUrl = GlobalData.platformFrontendSettings.authenticationUrl;
+  if (authenticationUrl) {
+    return `${authenticationUrl}?goto=${encodedGoToUrl}${issParam}`;
   }
   // TODO: what if altinn3?
   throw new Error('Unknown domain');

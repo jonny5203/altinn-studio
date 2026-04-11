@@ -1,4 +1,5 @@
 using Altinn.App.Core.Configuration;
+using Altinn.App.Core.Exceptions;
 using Altinn.App.Core.Features.Auth;
 using Altinn.App.Core.Features.Bootstrap;
 using Altinn.App.Core.Features.Redirect;
@@ -29,7 +30,7 @@ public class BootstrapGlobalServiceTests
             ApiAuthenticationEndpoint = "https://platform.example/authentication/api/v1/",
         };
 
-        var sut = CreateSut(platformFrontendSettings, platformSettings);
+        var sut = CreateSut(platformFrontendSettings);
 
         var result = await sut.GetGlobalState("ttd", "test", null, null);
 
@@ -40,29 +41,15 @@ public class BootstrapGlobalServiceTests
     }
 
     [Fact]
-    public async Task GetGlobalState_FallsBackToApiAuthenticationEndpoint_WhenAuthenticationUrlIsMissing()
+    public async Task GetGlobalState_Throws_WhenAuthenticationUrlIsMissing()
     {
         var platformFrontendSettings = new PlatformFrontendSettings { AuthenticationUrl = null };
+        var sut = CreateSut(platformFrontendSettings);
 
-        var platformSettings = new PlatformSettings
-        {
-            ApiAuthenticationEndpoint = "https://platform.example/authentication/api/v1/",
-        };
-
-        var sut = CreateSut(platformFrontendSettings, platformSettings);
-
-        var result = await sut.GetGlobalState("ttd", "test", null, null);
-
-        Assert.Equal(
-            "https://platform.example/authentication/api/v1/authentication",
-            result.PlatformFrontendSettings.AuthenticationUrl?.ToString()
-        );
+        await Assert.ThrowsAsync<ConfigurationException>(() => sut.GetGlobalState("ttd", "test", null, null));
     }
 
-    private static BootstrapGlobalService CreateSut(
-        PlatformFrontendSettings platformFrontendSettings,
-        PlatformSettings platformSettings
-    )
+    private static BootstrapGlobalService CreateSut(PlatformFrontendSettings platformFrontendSettings)
     {
         var appMetadata = new Mock<IAppMetadata>();
         appMetadata.Setup(x => x.GetApplicationMetadata()).ReturnsAsync(new ApplicationMetadata("ttd/test"));
@@ -98,8 +85,7 @@ public class BootstrapGlobalServiceTests
             authenticationContext.Object,
             new HttpContextAccessor { HttpContext = new DefaultHttpContext() },
             altinnCdnClient.Object,
-            NullLogger<BootstrapGlobalService>.Instance,
-            CreateOptionsMonitor(platformSettings)
+            NullLogger<BootstrapGlobalService>.Instance
         );
     }
 
