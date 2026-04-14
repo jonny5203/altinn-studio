@@ -144,7 +144,6 @@ internal sealed record AppCommandTestFixture(
         new()
         {
             OperationId = operationId,
-            IdempotencyKey = $"test-step-key/{operationId}",
             ProcessingOrder = 0,
             Command = command,
         };
