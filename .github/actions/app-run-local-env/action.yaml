@@ -45,6 +45,18 @@ runs:
 
         echo "profile-args=$profile_args" >> $GITHUB_OUTPUT
 
+    - name: Select compose file
+      id: set-compose-file
+      shell: bash
+      run: |
+        compose_file="docker-compose.yml"
+
+        if [[ "${{ github.event_name }}" != "pull_request" || "${{ github.event.pull_request.head.repo.full_name }}" == "${{ github.repository }}" ]]; then
+          compose_file="docker-compose.yml:docker-compose.ci.yml"
+        fi
+
+        echo "compose-file=$compose_file" >> "$GITHUB_OUTPUT"
+
     - name: Set up Docker Buildx
       if: ${{ inputs.run-localtest == 'true' }}
       uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
@@ -61,7 +73,7 @@ runs:
       if: ${{ inputs.run-localtest == 'true' }}
       working-directory: src/Runtime/localtest
       env:
-        COMPOSE_FILE: 'docker-compose.yml:docker-compose.ci.yml'
+        COMPOSE_FILE: ${{ steps.set-compose-file.outputs.compose-file }}
       run: |
         args="${{ steps.set-profile.outputs.profile-args }}"
 
@@ -88,7 +100,7 @@ runs:
       env:
         TEST_DOMAIN: local.altinn.cloud
         ALTINN3LOCAL_PORT: 80
-        COMPOSE_FILE: 'docker-compose.yml:docker-compose.ci.yml'
+        COMPOSE_FILE: ${{ steps.set-compose-file.outputs.compose-file }}
 
     - name: Download the built frontend
       if: ${{ inputs.run-frontend == 'true' }}

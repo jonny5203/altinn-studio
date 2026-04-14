@@ -22,13 +22,25 @@ runs:
         username: ${{ github.actor }}
         password: ${{ github.token }}
 
+    - name: Select compose file
+      id: set-compose-file
+      shell: bash
+      run: |
+        compose_file="docker-compose.yml"
+
+        if [[ "${{ github.event_name }}" != "pull_request" || "${{ github.event.pull_request.head.repo.full_name }}" == "${{ github.repository }}" ]]; then
+          compose_file="docker-compose.yml:docker-compose.ci.yml"
+        fi
+
+        echo "compose-file=$compose_file" >> "$GITHUB_OUTPUT"
+
     - name: Build localtest
       working-directory: src/Runtime/localtest
       env:
         DOCKER_BUILDKIT: 1
         COMPOSE_DOCKER_CLI_BUILD: 1
         BUILDKIT_PROGRESS: plain
-        COMPOSE_FILE: 'docker-compose.yml:docker-compose.ci.yml'
+        COMPOSE_FILE: ${{ steps.set-compose-file.outputs.compose-file }}
       run: |
         args=""
         if [[ "${{ inputs.docker-profile }}" != "" ]]; then
