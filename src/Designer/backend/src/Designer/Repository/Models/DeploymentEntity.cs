@@ -12,6 +12,13 @@ namespace Altinn.Studio.Designer.Repository.Models;
 public class DeploymentEntity : BaseEntity
 {
     /// <summary>
+    /// Primary key
+    /// </summary>
+    [JsonIgnore]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public long SequenceNo { get; set; }
+
+    /// <summary>
     /// TagName
     /// </summary>
     [JsonProperty("tagName")]
@@ -45,6 +52,7 @@ public class DeploymentEntity : BaseEntity
         DeployEventType.UpgradeFailed,
         DeployEventType.UninstallSucceeded,
         DeployEventType.UninstallFailed,
+        DeployEventType.ResourceRegistryPublishFailed,
     ];
 
     /// <summary>
@@ -108,6 +116,8 @@ public enum DeployEventType
     UpgradeFailed,
     UninstallSucceeded,
     UninstallFailed,
+    ResourceRegistryPublishSucceeded,
+    ResourceRegistryPublishFailed,
 }
 
 public enum DeployEventOrigin
