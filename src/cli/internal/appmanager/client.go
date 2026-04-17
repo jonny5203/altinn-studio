@@ -33,11 +33,12 @@ const (
 	appManagerTunnelURLEnv  = "Tunnel__Url"
 	appManagerStudioctlEnv  = "Studioctl__Path"
 
-	appManagerStartTimeout = 10 * time.Second
-	appManagerShutdownWait = 3 * time.Second
-	appManagerPollInterval = 100 * time.Millisecond
-	appTunnelEndpointPath  = "/internal/tunnel/app"
-	appManagerLogTailLines = 40
+	appManagerStartTimeout          = 10 * time.Second
+	appManagerRegisterTimeoutMargin = 2 * time.Second
+	appManagerShutdownWait          = 3 * time.Second
+	appManagerPollInterval          = 100 * time.Millisecond
+	appTunnelEndpointPath           = "/internal/tunnel/app"
+	appManagerLogTailLines          = 40
 )
 
 type startConfig struct {
@@ -93,29 +94,41 @@ var (
 	errUnexpectedShutdownStatus   = errors.New("unexpected app-manager shutdown response")
 	errAppManagerStartTimedOut    = errors.New("app-manager start timed out")
 	errInvalidPIDFile             = errors.New("pid file does not contain a positive pid")
+	// ErrAppEndpointNotFound is returned when app-manager cannot find a matching app endpoint.
+	ErrAppEndpointNotFound = errors.New("matching app endpoint not found")
 )
 
 // Client talks to the local app-manager control plane.
 type Client struct {
 	http *http.Client
+	cfg  *config.Config
 }
 
 // AppRegistration describes an app endpoint registered explicitly by studioctl.
 type AppRegistration struct {
 	AppID              string `json:"appId"`
-	BaseURL            string `json:"baseUrl"`
 	Description        string `json:"description,omitempty"`
+	Port               int    `json:"port,omitempty"`
+	ProcessID          int    `json:"processId,omitempty"`
 	GracePeriodSeconds int    `json:"gracePeriodSeconds"`
 }
 
 // NewClient constructs an app-manager control-plane client.
 func NewClient(cfg *config.Config) *Client {
 	return &Client{
+		cfg: cfg,
 		http: &http.Client{
 			Transport: transportForConfig(cfg),
 			Timeout:   2 * time.Second,
 		},
 	}
+}
+
+func appRegistrationTimeout(registration AppRegistration) time.Duration {
+	if registration.GracePeriodSeconds <= 0 {
+		return appManagerRegisterTimeoutMargin
+	}
+	return time.Duration(registration.GracePeriodSeconds)*time.Second + appManagerRegisterTimeoutMargin
 }
 
 // Shutdown stops app-manager and returns a completion channel that resolves when shutdown is fully complete.
@@ -241,11 +254,11 @@ func (c *Client) Status(ctx context.Context) (*Status, error) {
 	return result, nil
 }
 
-// RegisterApp registers an app endpoint explicitly with app-manager.
-func (c *Client) RegisterApp(ctx context.Context, registration AppRegistration) error {
+// RegisterApp registers an app endpoint with app-manager and returns the resolved base URL.
+func (c *Client) RegisterApp(ctx context.Context, registration AppRegistration) (string, error) {
 	body, err := json.Marshal(registration)
 	if err != nil {
-		return fmt.Errorf("encode app registration: %w", err)
+		return "", fmt.Errorf("encode app registration: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(
@@ -255,21 +268,38 @@ func (c *Client) RegisterApp(ctx context.Context, registration AppRegistration) 
 		bytes.NewReader(body),
 	)
 	if err != nil {
-		return fmt.Errorf("build register app request: %w", err)
+		return "", fmt.Errorf("build register app request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.http.Do(req)
+	client := &http.Client{
+		Transport: transportForConfig(c.cfg),
+		Timeout:   appRegistrationTimeout(registration),
+	}
+	resp, err := client.Do(req)
 	if err != nil {
-		return classifyClientError(err)
+		return "", classifyClientError(err)
 	}
 	defer closeResponseBody(resp)
 
+	if resp.StatusCode == http.StatusNotFound {
+		return "", ErrAppEndpointNotFound
+	}
 	if resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf("%w: %s", errUnexpectedRegisterStatus, resp.Status)
+		return "", fmt.Errorf("%w: %s", errUnexpectedRegisterStatus, resp.Status)
 	}
 
-	return nil
+	var result struct {
+		BaseURL string `json:"baseUrl"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("decode app registration response: %w", err)
+	}
+	if result.BaseURL == "" {
+		return "", fmt.Errorf("%w: missing baseUrl", errUnexpectedRegisterStatus)
+	}
+
+	return result.BaseURL, nil
 }
 
 // UnregisterApp removes an app endpoint explicitly registered with app-manager.
@@ -474,7 +504,7 @@ func startProcess(ctx context.Context, cfg *config.Config, startConfig startConf
 	cmd.Stdin = devNull
 	cmd.Stdout = devNull
 	cmd.Stderr = devNull
-	applyProcessAttrs(cmd)
+	osutil.ApplyDetachedAttrs(cmd)
 
 	err = cmd.Start()
 	if err != nil {

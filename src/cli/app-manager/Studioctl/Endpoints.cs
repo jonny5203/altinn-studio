@@ -44,38 +44,39 @@ internal static class Endpoints
         );
     }
 
-    private static IResult RegisterApp(AppRegistry registry, RegisterAppRequest? request)
+    private static async Task<IResult> RegisterApp(
+        RegisterApp registerApp,
+        RegisterAppRequest? request,
+        CancellationToken cancellationToken
+    )
     {
         if (request is null)
             return Results.BadRequest(new CommandResponse("request body is required"));
 
-        if (string.IsNullOrWhiteSpace(request.AppId))
-            return Results.BadRequest(new CommandResponse("appId is required"));
+        var result = await registerApp.Handle(
+            new RegisterAppCommand(
+                request.AppId,
+                request.Port,
+                request.ProcessId,
+                request.Description,
+                TimeSpan.FromSeconds(request.GracePeriodSeconds)
+            ),
+            cancellationToken
+        );
 
-        if (
-            string.IsNullOrWhiteSpace(request.BaseUrl)
-            || !Uri.TryCreate(request.BaseUrl, UriKind.Absolute, out var baseUri)
-            || (baseUri.Scheme != Uri.UriSchemeHttp && baseUri.Scheme != Uri.UriSchemeHttps)
-        )
+        return result.Kind switch
         {
-            return Results.BadRequest(new CommandResponse("baseUrl must be an absolute http or https URL"));
-        }
-
-        var description = string.IsNullOrWhiteSpace(request.Description)
-            ? $"studioctl app {request.AppId}"
-            : request.Description;
-        if (request.GracePeriodSeconds <= 0)
-            return Results.BadRequest(new CommandResponse("gracePeriodSeconds must be positive"));
-
-        registry.Register(request.AppId.Trim(), baseUri, description, TimeSpan.FromSeconds(request.GracePeriodSeconds));
-        return Results.Accepted(value: new CommandResponse("app registered"));
+            RegisterAppResultKind.Registered when result.BaseUri is { } baseUri => Results.Accepted(
+                value: new RegisterAppResponse(result.Message, baseUri.ToString())
+            ),
+            RegisterAppResultKind.InvalidRequest => Results.BadRequest(new CommandResponse(result.Message)),
+            RegisterAppResultKind.NotFound => Results.NotFound(new CommandResponse(result.Message)),
+            _ => Results.StatusCode(StatusCodes.Status500InternalServerError),
+        };
     }
 
-    private static IResult UnregisterApp(AppRegistry registry, string? appId, string? baseUrl)
+    private static IResult UnregisterApp(UnregisterApp unregisterApp, string? appId, string? baseUrl)
     {
-        if (string.IsNullOrWhiteSpace(appId))
-            return Results.BadRequest(new CommandResponse("appId is required"));
-
         if (
             string.IsNullOrWhiteSpace(baseUrl)
             || !Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri)
@@ -85,8 +86,13 @@ internal static class Endpoints
             return Results.BadRequest(new CommandResponse("baseUrl must be an absolute http or https URL"));
         }
 
-        registry.Unregister(appId.Trim(), baseUri);
-        return Results.Accepted(value: new CommandResponse("app unregistered"));
+        var result = unregisterApp.Handle(appId, baseUri);
+        return result.Kind switch
+        {
+            UnregisterAppResultKind.Unregistered => Results.Accepted(value: new CommandResponse(result.Message)),
+            UnregisterAppResultKind.InvalidRequest => Results.BadRequest(new CommandResponse(result.Message)),
+            _ => Results.StatusCode(StatusCodes.Status500InternalServerError),
+        };
     }
 
     private static async Task<IResult> Shutdown(IHostApplicationLifetime lifetime, CancellationToken cancellationToken)
@@ -121,7 +127,15 @@ internal static class Endpoints
 
     private sealed record TunnelStatusResponse(bool Enabled, bool Connected, string? Url);
 
-    private sealed record RegisterAppRequest(string AppId, string BaseUrl, string? Description, int GracePeriodSeconds);
+    private sealed record RegisterAppRequest(
+        string AppId,
+        int? Port,
+        int? ProcessId,
+        string? Description,
+        int GracePeriodSeconds
+    );
+
+    private sealed record RegisterAppResponse(string Message, string BaseUrl);
 
     private sealed record DiscoveredAppResponse(
         string AppId,
