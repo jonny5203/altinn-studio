@@ -14,6 +14,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +41,7 @@ const (
 	appManagerPollInterval          = 100 * time.Millisecond
 	appTunnelEndpointPath           = "/internal/tunnel/app"
 	appManagerLogTailLines          = 40
+	appManagerLogSuffix             = ".log"
 )
 
 type startConfig struct {
@@ -83,6 +86,13 @@ type DiscoveredApp struct {
 	Description string `json:"description"`
 	Name        string `json:"name,omitempty"`
 	ContainerID string `json:"containerId,omitempty"`
+}
+
+// LogFile describes one app-manager log file.
+type LogFile struct {
+	ModTime time.Time
+	Path    string
+	Size    int64
 }
 
 var (
@@ -419,7 +429,7 @@ func reconcilePersistedProcess(
 	}
 
 	if state.Start == desired {
-		status, waitErr := waitForHealthy(ctx, cfg, client)
+		status, waitErr := waitForHealthy(ctx, cfg, client, state.PID)
 		if waitErr == nil {
 			return writeAppManagerState(cfg, runtimeState{PID: status.ProcessID, Start: desired})
 		}
@@ -528,7 +538,7 @@ func startProcess(ctx context.Context, cfg *config.Config, startConfig startConf
 	}
 
 	client := NewClient(cfg)
-	status, err := waitForHealthy(ctx, cfg, client)
+	status, err := waitForHealthy(ctx, cfg, client, cmd.Process.Pid)
 	if err == nil {
 		return writeAppManagerState(cfg, runtimeState{PID: status.ProcessID, Start: startConfig})
 	}
@@ -538,7 +548,7 @@ func startProcess(ctx context.Context, cfg *config.Config, startConfig startConf
 	return err
 }
 
-func waitForHealthy(ctx context.Context, cfg *config.Config, client *Client) (*Status, error) {
+func waitForHealthy(ctx context.Context, cfg *config.Config, client *Client, logPID int) (*Status, error) {
 	deadline := time.Now().Add(appManagerStartTimeout)
 	var lastErr error
 	for time.Now().Before(deadline) {
@@ -557,7 +567,7 @@ func waitForHealthy(ctx context.Context, cfg *config.Config, client *Client) (*S
 			errAppManagerStartTimedOut,
 			appManagerStartTimeout,
 			lastErr,
-			readAppManagerLogTail(cfg.AppManagerLogPath()),
+			readAppManagerLogTailForPID(cfg.AppManagerLogDir(), logPID),
 		)
 	}
 
@@ -565,7 +575,7 @@ func waitForHealthy(ctx context.Context, cfg *config.Config, client *Client) (*S
 		"%w: %s%s",
 		errAppManagerStartTimedOut,
 		appManagerStartTimeout,
-		readAppManagerLogTail(cfg.AppManagerLogPath()),
+		readAppManagerLogTailForPID(cfg.AppManagerLogDir(), logPID),
 	)
 }
 
@@ -757,13 +767,36 @@ func closeResponseBody(resp *http.Response) {
 func ignoreError(error) {
 }
 
+func readLatestAppManagerLogTail(dir string) string {
+	path, ok := latestAppManagerLogPath(dir)
+	if !ok {
+		return ""
+	}
+
+	return readAppManagerLogTail(path)
+}
+
+func readAppManagerLogTailForPID(dir string, pid int) string {
+	if pid <= 0 {
+		return readLatestAppManagerLogTail(dir)
+	}
+
+	paths, err := LogPathsForPID(dir, pid)
+	if err != nil || len(paths) == 0 {
+		return ""
+	}
+	return readAppManagerLogTail(paths[len(paths)-1])
+}
+
 func readAppManagerLogTail(path string) string {
-	//nolint:gosec // G304: log path is derived from resolved STUDIOCTL_HOME and never user-supplied per request.
+	//nolint:gosec // G304: log path is derived from resolved STUDIOCTL_HOME and a fixed filename pattern.
 	file, err := os.Open(path)
 	if err != nil {
 		return ""
 	}
-	defer ignoreError(file.Close())
+	defer func() {
+		ignoreError(file.Close())
+	}()
 
 	lines := make([]string, 0, appManagerLogTailLines)
 	scanner := bufio.NewScanner(file)
@@ -785,6 +818,126 @@ func readAppManagerLogTail(path string) string {
 		"app-manager log tail:" +
 		osutil.LineBreak +
 		strings.Join(lines, osutil.LineBreak)
+}
+
+func latestAppManagerLogPath(dir string) (string, bool) {
+	return LatestLogPath(dir)
+}
+
+// LatestLogPath returns the most recently modified app-manager log path.
+func LatestLogPath(dir string) (string, bool) {
+	files, err := LogFiles(dir)
+	if err != nil || len(files) == 0 {
+		return "", false
+	}
+	return files[len(files)-1].Path, true
+}
+
+// LogFiles returns app-manager log files ordered by modification time.
+func LogFiles(dir string) ([]LogFile, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read app-manager log directory: %w", err)
+	}
+
+	files := make([]LogFile, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !isAppManagerLogName(entry.Name()) {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		files = append(files, LogFile{
+			Path:    filepath.Join(dir, entry.Name()),
+			ModTime: info.ModTime(),
+			Size:    info.Size(),
+		})
+	}
+	sort.Slice(files, func(i, j int) bool {
+		if files[i].ModTime.Equal(files[j].ModTime) {
+			return files[i].Path < files[j].Path
+		}
+		return files[i].ModTime.Before(files[j].ModTime)
+	})
+
+	return files, nil
+}
+
+// LogPathsForPID returns app-manager logs for a process id in filename order.
+func LogPathsForPID(dir string, pid int) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read app-manager log directory: %w", err)
+	}
+
+	paths := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !isAppManagerLogNameForPID(entry.Name(), pid) {
+			continue
+		}
+		paths = append(paths, filepath.Join(dir, entry.Name()))
+	}
+	sort.Strings(paths)
+
+	return paths, nil
+}
+
+func isAppManagerLogName(name string) bool {
+	_, ok := logPIDFromName(name)
+	return ok
+}
+
+func logPIDFromName(name string) (int, bool) {
+	const dateLength = len("2006-01-02")
+	if len(name) <= dateLength+len("-")+len(appManagerLogSuffix) {
+		return 0, false
+	}
+	if !isUTCDatePrefix(name[:dateLength]) {
+		return 0, false
+	}
+	if name[dateLength] != '-' {
+		return 0, false
+	}
+	if !strings.HasSuffix(name, appManagerLogSuffix) {
+		return 0, false
+	}
+
+	value, err := strconv.Atoi(name[dateLength+1 : len(name)-len(appManagerLogSuffix)])
+	if err != nil || value <= 0 {
+		return 0, false
+	}
+	return value, true
+}
+
+func isAppManagerLogNameForPID(name string, pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	logPID, ok := logPIDFromName(name)
+	return ok && logPID == pid
+}
+
+func isUTCDatePrefix(value string) bool {
+	if len(value) != len("2006-01-02") || value[4] != '-' || value[7] != '-' {
+		return false
+	}
+	for i, r := range value {
+		if i == 4 || i == 7 {
+			continue
+		}
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func zeroRuntimeState() runtimeState {
