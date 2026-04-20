@@ -31,9 +31,10 @@ const (
 	registerPath = "/api/v1/studioctl/apps"
 	shutdownPath = "/api/v1/studioctl/shutdown"
 
-	appManagerUnixSocketEnv = "APP_MANAGER_UNIX_SOCKET_PATH"
-	appManagerTunnelURLEnv  = "Tunnel__Url"
-	appManagerStudioctlEnv  = "Studioctl__Path"
+	appManagerUnixSocketEnv   = "APP_MANAGER_UNIX_SOCKET_PATH"
+	appManagerTunnelURLEnv    = "Tunnel__Url"
+	appManagerLocaltestURLEnv = "Localtest__Url"
+	appManagerStudioctlEnv    = "Studioctl__Path"
 
 	appManagerStartTimeout          = 10 * time.Second
 	appManagerRegisterTimeoutMargin = 2 * time.Second
@@ -49,6 +50,7 @@ type startConfig struct {
 	WorkingDir     string `json:"workingDir"`
 	UnixSocketPath string `json:"unixSocketPath,omitempty"`
 	TunnelURL      string `json:"tunnelUrl"`
+	LocaltestURL   string `json:"localtestUrl"`
 	StudioctlPath  string `json:"studioctlPath"`
 	InternalDev    bool   `json:"internalDev"`
 }
@@ -63,6 +65,7 @@ type Status struct {
 	AppManagerVersion string          `json:"appManagerVersion"`
 	DotnetVersion     string          `json:"dotnetVersion"`
 	StudioctlPath     string          `json:"studioctlPath"`
+	LocaltestURL      string          `json:"localtestUrl"`
 	Tunnel            TunnelStatus    `json:"tunnel"`
 	Apps              []DiscoveredApp `json:"apps"`
 	ProcessID         int             `json:"processId"`
@@ -107,6 +110,9 @@ var (
 	errUnexpectedShutdownStatus   = errors.New("unexpected app-manager shutdown response")
 	errAppManagerStartTimedOut    = errors.New("app-manager start timed out")
 	errInvalidPIDFile             = errors.New("pid file does not contain a positive pid")
+	errAppManagerSocketDir        = errors.New("app-manager socket path is a directory")
+	errAppManagerSocketInUse      = errors.New("app-manager socket is already in use")
+	errAppManagerForceStopTimeout = errors.New("app-manager did not stop after kill")
 	// ErrAppEndpointNotFound is returned when app-manager cannot find a matching app endpoint.
 	ErrAppEndpointNotFound = errors.New("matching app endpoint not found")
 )
@@ -146,20 +152,28 @@ func appRegistrationTimeout(registration AppRegistration) time.Duration {
 
 // Shutdown stops app-manager and returns a completion channel that resolves when shutdown is fully complete.
 func Shutdown(ctx context.Context, cfg *config.Config) (<-chan error, error) {
+	lock, err := osutil.AcquireFileLock(ctx, cfg.AppManagerLockPath())
+	if err != nil {
+		return nil, fmt.Errorf("lock app-manager lifecycle: %w", err)
+	}
+
 	client := NewClient(cfg)
 	pid, err := currentManagedPID(ctx, client, cfg)
 	if err != nil {
+		ignoreError(lock.Close())
 		return nil, err
 	}
 
 	if err := shutdownError(client.shutdown(ctx), pid); err != nil {
+		ignoreError(lock.Close())
 		return nil, err
 	}
 
 	done := make(chan error, 1)
 	go func() {
+		defer close(done)
+		defer ignoreError(lock.Close())
 		done <- waitForManagedShutdown(ctx, cfg, client, pid)
-		close(done)
 	}()
 
 	return done, nil
@@ -222,6 +236,7 @@ func (c *Client) Status(ctx context.Context) (*Status, error) {
 		AppManagerVersion string `json:"appManagerVersion"`
 		DotnetVersion     string `json:"dotnetVersion"`
 		StudioctlPath     string `json:"studioctlPath"`
+		LocaltestURL      string `json:"localtestUrl"`
 		Tunnel            struct {
 			URL       string `json:"url"`
 			Enabled   bool   `json:"enabled"`
@@ -249,6 +264,7 @@ func (c *Client) Status(ctx context.Context) (*Status, error) {
 		AppManagerVersion: status.AppManagerVersion,
 		DotnetVersion:     status.DotnetVersion,
 		StudioctlPath:     status.StudioctlPath,
+		LocaltestURL:      status.LocaltestURL,
 		InternalDev:       status.InternalDev,
 		Tunnel: TunnelStatus{
 			Enabled:   status.Tunnel.Enabled,
@@ -378,6 +394,12 @@ func EnsureStartedWithStudioctlPath(
 	loadBalancerPort,
 	studioctlPath string,
 ) error {
+	lock, err := osutil.AcquireFileLock(ctx, cfg.AppManagerLockPath())
+	if err != nil {
+		return fmt.Errorf("lock app-manager lifecycle: %w", err)
+	}
+	defer ignoreError(lock.Close())
+
 	desired := buildStartConfig(cfg, loadBalancerPort, studioctlPath)
 	client := NewClient(cfg)
 
@@ -469,6 +491,11 @@ func TunnelURL(port string) string {
 	return "ws://127.0.0.1:" + port + appTunnelEndpointPath
 }
 
+// LocaltestURL returns the localtest HTTP URL for a host port.
+func LocaltestURL(port string) string {
+	return "http://127.0.0.1:" + port
+}
+
 func restartManagedProcess(
 	ctx context.Context,
 	cfg *config.Config,
@@ -480,13 +507,13 @@ func restartManagedProcess(
 		return fmt.Errorf("shutdown app-manager for restart: %w", err)
 	}
 
-	if !waitForShutdown(ctx, client, cfg) {
-		if err := osutil.KillProcess(pid); err != nil {
-			return fmt.Errorf("kill app-manager after shutdown timeout: %w", err)
+	if !waitForShutdown(ctx, client, cfg, pid) {
+		if err := forceStopAppManager(ctx, client, pid); err != nil {
+			return fmt.Errorf("force stop app-manager after shutdown timeout: %w", err)
 		}
-		if err := removeAppManagerState(cfg); err != nil {
-			return fmt.Errorf("remove stale app-manager pid file: %w", err)
-		}
+	}
+	if err := removeAppManagerState(cfg); err != nil {
+		return fmt.Errorf("remove stale app-manager pid file: %w", err)
 	}
 
 	return startProcess(ctx, cfg, desired)
@@ -503,6 +530,9 @@ func startProcess(ctx context.Context, cfg *config.Config, startConfig startConf
 	if err := removeAppManagerState(cfg); err != nil {
 		return fmt.Errorf("remove stale app-manager pid file: %w", err)
 	}
+	if err := prepareAppManagerSocketForStart(ctx, cfg); err != nil {
+		return err
+	}
 	startedAt := time.Now()
 
 	//nolint:gosec // G204: binary path comes from resolved studioctl config.
@@ -514,6 +544,9 @@ func startProcess(ctx context.Context, cfg *config.Config, startConfig startConf
 	)
 	if startConfig.TunnelURL != "" {
 		cmd.Env = append(cmd.Env, appManagerTunnelURLEnv+"="+startConfig.TunnelURL)
+	}
+	if startConfig.LocaltestURL != "" {
+		cmd.Env = append(cmd.Env, appManagerLocaltestURLEnv+"="+startConfig.LocaltestURL)
 	}
 	if startConfig.StudioctlPath != "" {
 		cmd.Env = append(cmd.Env, appManagerStudioctlEnv+"="+startConfig.StudioctlPath)
@@ -561,6 +594,41 @@ func startProcess(ctx context.Context, cfg *config.Config, startConfig startConf
 	return err
 }
 
+func prepareAppManagerSocketForStart(ctx context.Context, cfg *config.Config) error {
+	if err := removeStaleAppManagerSocket(ctx, cfg); err != nil {
+		return fmt.Errorf("prepare app-manager socket: %w", err)
+	}
+	return nil
+}
+
+func removeStaleAppManagerSocket(ctx context.Context, cfg *config.Config) error {
+	socketPath := cfg.AppManagerSocketPath()
+	info, err := os.Lstat(socketPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("stat app-manager socket: %w", err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("%w: %s", errAppManagerSocketDir, socketPath)
+	}
+
+	client := NewClient(cfg)
+	err = client.Health(ctx)
+	switch {
+	case err == nil:
+		return fmt.Errorf("%w: %s", errAppManagerSocketInUse, socketPath)
+	case !errors.Is(err, ErrNotRunning):
+		return fmt.Errorf("probe existing app-manager socket: %w", err)
+	}
+
+	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove stale app-manager socket: %w", err)
+	}
+	return nil
+}
+
 func waitForHealthy(ctx context.Context, cfg *config.Config, client *Client, logSince time.Time) (*Status, error) {
 	deadline := time.Now().Add(appManagerStartTimeout)
 	var lastErr error
@@ -592,10 +660,10 @@ func waitForHealthy(ctx context.Context, cfg *config.Config, client *Client, log
 	)
 }
 
-func waitForShutdown(ctx context.Context, client *Client, cfg *config.Config) bool {
+func waitForShutdown(ctx context.Context, client *Client, cfg *config.Config, pid int) bool {
 	deadline := time.Now().Add(appManagerStartTimeout)
 	for time.Now().Before(deadline) {
-		if err := client.Health(ctx); errors.Is(err, ErrNotRunning) {
+		if appManagerStopped(ctx, client, pid) {
 			ignoreError(removeAppManagerState(cfg))
 			return true
 		}
@@ -603,6 +671,28 @@ func waitForShutdown(ctx context.Context, client *Client, cfg *config.Config) bo
 	}
 
 	return false
+}
+
+func forceStopAppManager(ctx context.Context, client *Client, pid int) error {
+	if err := osutil.KillProcess(pid); err != nil {
+		return fmt.Errorf("kill app-manager pid %d: %w", pid, err)
+	}
+
+	deadline := time.Now().Add(appManagerShutdownWait)
+	for time.Now().Before(deadline) {
+		if appManagerStopped(ctx, client, pid) {
+			return nil
+		}
+		time.Sleep(appManagerPollInterval)
+	}
+
+	return fmt.Errorf("%w: pid %d", errAppManagerForceStopTimeout, pid)
+}
+
+func appManagerStopped(ctx context.Context, client *Client, pid int) bool {
+	healthStopped := errors.Is(client.Health(ctx), ErrNotRunning)
+	processStopped, err := managedProcessStopped(pid)
+	return err == nil && healthStopped && processStopped
 }
 
 func currentManagedPID(ctx context.Context, client *Client, cfg *config.Config) (int, error) {
@@ -634,26 +724,21 @@ func currentManagedPID(ctx context.Context, client *Client, cfg *config.Config) 
 func waitForManagedShutdown(ctx context.Context, cfg *config.Config, client *Client, pid int) error {
 	deadline := time.Now().Add(appManagerShutdownWait)
 	for time.Now().Before(deadline) {
-		healthStopped := errors.Is(client.Health(ctx), ErrNotRunning)
-		processStopped, err := managedProcessStopped(pid)
-		if err != nil {
-			return err
-		}
-		if healthStopped && processStopped {
+		if appManagerStopped(ctx, client, pid) {
 			if err := removeAppManagerState(cfg); err != nil {
 				return fmt.Errorf("remove stale app-manager pid file: %w", err)
 			}
-			return nil
+			return removeStaleAppManagerSocket(ctx, cfg)
 		}
 		time.Sleep(appManagerPollInterval)
 	}
 
-	return stopPersistedProcess(cfg, pid)
+	return stopPersistedProcess(ctx, cfg, client, pid)
 }
 
-func stopPersistedProcess(cfg *config.Config, pid int) error {
+func stopPersistedProcess(ctx context.Context, cfg *config.Config, client *Client, pid int) error {
 	if pid <= 0 {
-		return removePersistedAppManagerState(cfg)
+		return removePersistedAppManagerState(ctx, cfg)
 	}
 
 	running, err := osutil.ProcessRunning(pid)
@@ -661,19 +746,19 @@ func stopPersistedProcess(cfg *config.Config, pid int) error {
 		return fmt.Errorf("check app-manager pid %d: %w", pid, err)
 	}
 	if running {
-		if err := osutil.KillProcess(pid); err != nil {
-			return fmt.Errorf("kill app-manager pid %d: %w", pid, err)
+		if err := forceStopAppManager(ctx, client, pid); err != nil {
+			return err
 		}
 	}
 
-	return removePersistedAppManagerState(cfg)
+	return removePersistedAppManagerState(ctx, cfg)
 }
 
-func removePersistedAppManagerState(cfg *config.Config) error {
+func removePersistedAppManagerState(ctx context.Context, cfg *config.Config) error {
 	if err := removeAppManagerState(cfg); err != nil {
 		return fmt.Errorf("remove stale app-manager pid file: %w", err)
 	}
-	return nil
+	return removeStaleAppManagerSocket(ctx, cfg)
 }
 
 func managedProcessStopped(pid int) (bool, error) {
@@ -693,6 +778,7 @@ func buildStartConfig(cfg *config.Config, loadBalancerPort, studioctlPath string
 		WorkingDir:     cfg.Home,
 		UnixSocketPath: cfg.AppManagerSocketPath(),
 		TunnelURL:      TunnelURL(loadBalancerPort),
+		LocaltestURL:   LocaltestURL(loadBalancerPort),
 		StudioctlPath:  studioctlPath,
 		InternalDev:    config.IsTruthyEnv(os.Getenv(config.EnvInternalDevMode)),
 	}
@@ -704,6 +790,7 @@ func liveConfig(cfg *config.Config, status *Status) startConfig {
 		WorkingDir:     cfg.Home,
 		UnixSocketPath: cfg.AppManagerSocketPath(),
 		TunnelURL:      status.Tunnel.URL,
+		LocaltestURL:   status.LocaltestURL,
 		StudioctlPath:  status.StudioctlPath,
 		InternalDev:    status.InternalDev,
 	}
@@ -930,6 +1017,7 @@ func zeroRuntimeState() runtimeState {
 			WorkingDir:     "",
 			UnixSocketPath: "",
 			TunnelURL:      "",
+			LocaltestURL:   "",
 			StudioctlPath:  "",
 			InternalDev:    false,
 		},
