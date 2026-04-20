@@ -7,11 +7,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	containermock "altinn.studio/devenv/pkg/container/mock"
 	"altinn.studio/devenv/pkg/container/types"
+	appsupport "altinn.studio/studioctl/internal/cmd/apps"
+	"altinn.studio/studioctl/internal/osutil"
 	"altinn.studio/studioctl/internal/ui"
 )
 
@@ -138,6 +143,32 @@ func TestRunDetachedOutputPrintJSON(t *testing.T) {
 	if got.AppID != result.AppID || got.Mode != result.Mode || got.URL != result.URL ||
 		got.LogPath != result.LogPath || got.ProcessID != result.ProcessID {
 		t.Fatalf("output = %+v, want %+v", got, result)
+	}
+}
+
+func TestNextAppLogPathUsesNextRunIDForDate(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	for _, name := range []string{
+		"2026-04-20-1.log",
+		"2026-04-20-3.log",
+		"2026-04-19-10.log",
+		"2026-04-20-not-a-number.log",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), nil, osutil.FilePermOwnerOnly); err != nil {
+			t.Fatalf("write log file: %v", err)
+		}
+	}
+
+	got, err := appsupport.NextLogPath(dir, time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("NextLogPath() error = %v", err)
+	}
+
+	want := filepath.Join(dir, "2026-04-20-4.log")
+	if got != want {
+		t.Fatalf("NextLogPath() = %q, want %q", got, want)
 	}
 }
 

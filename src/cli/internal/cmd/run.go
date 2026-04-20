@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"altinn.studio/studioctl/internal/appimage"
 	"altinn.studio/studioctl/internal/appmanager"
 	appsvc "altinn.studio/studioctl/internal/cmd/app"
+	appsupport "altinn.studio/studioctl/internal/cmd/apps"
 	envlocaltest "altinn.studio/studioctl/internal/cmd/env/localtest"
 	"altinn.studio/studioctl/internal/config"
 	repocontext "altinn.studio/studioctl/internal/context"
@@ -34,6 +36,7 @@ const (
 	appManagerCleanupTimeout          = 2 * time.Second
 	appStartupTimeout                 = 15 * time.Second
 	appStartupPollInterval            = 500 * time.Millisecond
+	maxAppLogCreateAttempts           = 3
 )
 
 var (
@@ -41,6 +44,7 @@ var (
 	errAppContainerExited              = errors.New("app container exited")
 	errAppContainerStoppedBeforeReady  = errors.New("app container stopped before becoming reachable through localtest")
 	errAppExitedBeforeReady            = errors.New("app exited before becoming reachable through localtest")
+	errAppLogCreateCollision           = errors.New("too many app log files created concurrently")
 	errAppRunStopped                   = errors.New("app run stopped")
 	errAppStartupTimedOut              = errors.New("app did not become reachable through localtest")
 	errDotnetTargetPathEmpty           = errors.New("dotnet TargetPath is empty")
@@ -279,20 +283,21 @@ func (c *RunCommand) runDotnet(ctx context.Context, target appsvc.RunTarget, arg
 	if err != nil {
 		return err
 	}
-	if cleanupLog != nil {
-		defer cleanupLog()
-	}
+	defer cleanupLog()
 
 	if startErr := cmd.Start(); startErr != nil {
 		return fmt.Errorf("start dotnet: %w", startErr)
 	}
 
-	waitErr := make(chan error, 1)
-	go func() {
-		waitErr <- cmd.Wait()
-	}()
+	waitErr := waitForCommand(cmd)
 
 	processName := filepath.Base(targetPath)
+	metadataErr := c.writeProcessLogMetadata(target.AppID, cmd.Process.Pid, processName, logPath)
+	if metadataErr != nil {
+		stopDotnetProcess(cmd.Process, waitErr)
+		return metadataErr
+	}
+
 	baseURL, err := c.registerStartedDotnetApp(ctx, target, spec, cmd, waitErr, flags)
 	if err != nil {
 		return err
@@ -338,21 +343,29 @@ func (c *RunCommand) configureDotnetRunCommand(
 ) (string, func(), error) {
 	cmd.Dir = spec.Dir
 	cmd.Env = spec.Env
-	if !flags.detach {
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return "", nil, nil
-	}
-
-	logFile, logPath, err := c.openDetachedAppLog(target.AppID, flags.jsonOutput)
+	logFile, logPath, err := c.openAppLog(target.AppID, flags.jsonOutput)
 	if err != nil {
 		return "", nil, err
 	}
+	if !flags.detach {
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = io.MultiWriter(os.Stdout, logFile)
+		cmd.Stderr = io.MultiWriter(os.Stderr, logFile)
+		return logPath, func() { closeAppLog(c.out, logFile) }, nil
+	}
+
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	osutil.ApplyDetachedAttrs(cmd)
-	return logPath, func() { closeDetachedAppLog(c.out, logFile) }, nil
+	return logPath, func() { closeAppLog(c.out, logFile) }, nil
+}
+
+func waitForCommand(cmd *exec.Cmd) chan error {
+	waitErr := make(chan error, 1)
+	go func() {
+		waitErr <- cmd.Wait()
+	}()
+	return waitErr
 }
 
 func (c *RunCommand) registerStartedDotnetApp(
@@ -465,34 +478,56 @@ func lastNonEmptyLine(output []byte) string {
 	return ""
 }
 
-func (c *RunCommand) openDetachedAppLog(appID string, jsonOutput bool) (*os.File, string, error) {
+func (c *RunCommand) openAppLog(appID string, jsonOutput bool) (*os.File, string, error) {
 	if c.cfg == nil {
 		return nil, "", errStudioctlConfigRequired
 	}
-	if err := os.MkdirAll(c.cfg.LogDir, osutil.DirPermOwnerOnly); err != nil {
-		return nil, "", fmt.Errorf("create log directory: %w", err)
+	logDir := c.cfg.AppLogDir(appsupport.SanitizeAppID(appID))
+	if err := os.MkdirAll(logDir, osutil.DirPermOwnerOnly); err != nil {
+		return nil, "", fmt.Errorf("create app log directory: %w", err)
 	}
-	logPath := filepath.Join(c.cfg.LogDir, "app-"+sanitizeAppIDForPath(appID)+".log")
-	//nolint:gosec // G304: log path stays under the configured studioctl log directory; app ID is path-sanitized.
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, osutil.FilePermOwnerOnly)
-	if err != nil {
-		return nil, "", fmt.Errorf("open app log: %w", err)
+	for range maxAppLogCreateAttempts {
+		logPath, err := appsupport.NextLogPath(logDir, time.Now().UTC())
+		if err != nil {
+			return nil, "", fmt.Errorf("resolve app log path: %w", err)
+		}
+		//nolint:gosec // G304: log path stays under the configured studioctl log directory; app ID is path-sanitized.
+		logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, osutil.FilePermOwnerOnly)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return nil, "", fmt.Errorf("open app log: %w", err)
+		}
+		if !jsonOutput {
+			c.out.Printlnf("Log: %s", logPath)
+		}
+		return logFile, logPath, nil
 	}
-	if !jsonOutput {
-		c.out.Printlnf("Log: %s", logPath)
-	}
-	return logFile, logPath, nil
+
+	return nil, "", fmt.Errorf("create app log: %w", errAppLogCreateCollision)
 }
 
-func sanitizeAppIDForPath(appID string) string {
-	replacer := strings.NewReplacer("/", "-", "\\", "-", ":", "-")
-	return replacer.Replace(strings.Trim(appID, "/"))
-}
-
-func closeDetachedAppLog(out *ui.Output, logFile *os.File) {
+func closeAppLog(out *ui.Output, logFile *os.File) {
 	if err := logFile.Close(); err != nil {
 		out.Verbosef("failed to close app log: %v", err)
 	}
+}
+
+func (c *RunCommand) writeProcessLogMetadata(appID string, processID int, processName string, logPath string) error {
+	if err := appsupport.WriteRunMetadata(logPath, appsupport.RunMetadata{
+		StartedAt: time.Now().UTC(),
+		AppID:     appID,
+		Mode:      runModeProcess,
+		ID:        strconv.Itoa(processID),
+		Name:      processName,
+		LogPath:   logPath,
+		ProcessID: processID,
+		HostPort:  0,
+	}); err != nil {
+		return fmt.Errorf("write app log metadata: %w", err)
+	}
+	return nil
 }
 
 func nativeAppRunInfo(processID int) appmanager.AppRegistration {
