@@ -9,7 +9,7 @@ namespace WorkflowEngine.Telemetry;
 public static class Metrics
 {
     public const string ServiceName = "WorkflowEngine";
-    public const string ServiceVersion = "1.0.0"; // TODO: Get this from build
+    public const string ServiceVersion = "1.0.0";
     public static readonly ActivitySource Source = new(ServiceName);
     public static readonly Meter Meter = new(ServiceName);
 
@@ -62,6 +62,14 @@ public static class Metrics
     public static readonly Counter<long> WorkflowsReclaimed = Meter.CreateCounter<long>(
         "engine.workflows.execution.reclaimed",
         description: "Number of stale workflows reclaimed from crashed workers"
+    );
+    public static readonly Counter<long> WorkflowsLeaseLost = Meter.CreateCounter<long>(
+        "engine.workflows.execution.lease_lost",
+        description: "Number of in-flight workflows this host abandoned because their lease was reclaimed by another host"
+    );
+    public static readonly Counter<long> WorkflowFetchRaceDropped = Meter.CreateCounter<long>(
+        "engine.workflows.fetch.race_dropped",
+        description: "Number of fetched workflows skipped because they were already in-flight on this host (DbMaintenance reclaim race)"
     );
     public static readonly Histogram<double> WorkflowQueueTime = Meter.CreateHistogram<double>(
         "engine.workflows.time.queue",

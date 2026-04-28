@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using WorkflowEngine.Data.Constants;
 using WorkflowEngine.Models;
+using WorkflowEngine.Models.Exceptions;
 using WorkflowEngine.Models.Extensions;
 using WorkflowEngine.Resilience.Extensions;
 using WorkflowEngine.Resilience.Models;
@@ -36,13 +37,47 @@ internal sealed class WorkflowHandler(
     public async Task Handle(Workflow workflow, CancellationToken ct)
     {
         StartProcessWorkflowActivity(workflow);
+        try
+        {
+            await ProcessWorkflow(workflow, ct);
+        }
+        catch (LeaseLostException)
+        {
+            // Reclaimed by another host. Exit cleanly — no retry, no re-enqueue.
+            HandleLeaseLost(workflow);
+        }
+        finally
+        {
+            StopActivity(workflow);
+        }
+    }
 
+    private void HandleLeaseLost(Workflow workflow)
+    {
+        logger.WorkflowLeaseLost(workflow);
+        Metrics.WorkflowsLeaseLost.Add(1, workflow.GetHistorgramTags());
+
+        // Steps run sequentially so at most one span is open, but a per-step Submit that
+        // throws LeaseLostException unwinds past the per-step StopActivity. Loop to catch it.
+        foreach (var step in workflow.Steps)
+        {
+            if (step.EngineActivity is null)
+                continue;
+
+            step.EngineActivity.Errored(errorMessage: "Lease lost — workflow reclaimed by another host");
+            StopActivity(step);
+        }
+
+        workflow.EngineActivity?.Errored(errorMessage: "Lease lost — workflow reclaimed by another host");
+    }
+
+    private async Task ProcessWorkflow(Workflow workflow, CancellationToken ct)
+    {
         Assert.That(workflow.Status == PersistentItemStatus.Processing);
         workflow.ExecutionStartedAt = timeProvider.GetUtcNow();
 
         RecordWorkflowQueueTime(workflow);
 
-        // Early exit: cancellation was requested before processing started
         if (workflow.CancellationRequestedAt is not null)
         {
             workflow.Status = PersistentItemStatus.Canceled;
@@ -54,7 +89,6 @@ internal sealed class WorkflowHandler(
 
             await statusWriteBuffer.Submit(workflow, CancellationToken.None);
 
-            StopActivity(workflow);
             return;
         }
 
@@ -65,7 +99,7 @@ internal sealed class WorkflowHandler(
             RecordWorkflowServiceTime(workflow);
             RecordWorkflowTotalTime(workflow);
 
-            Metrics.WorkflowsFailed.Add(1);
+            Metrics.WorkflowsFailed.Add(1, ("reason", "dependency_failed"));
 
             await statusWriteBuffer.Submit(workflow, CancellationToken.None);
 
@@ -95,11 +129,14 @@ internal sealed class WorkflowHandler(
                 }
             }
 
-            // The in-flight step was modified inside ProcessSteps before rethrowing.
-            // Pass all steps since we don't have access to the specific step here.
+            // ProcessSteps mutates the in-flight step before rethrowing; pass all steps
+            // since we don't have access to the specific one here.
             await statusWriteBuffer.Submit(workflow, CancellationToken.None, dirtySteps: workflow.Steps);
 
-            StopActivity(workflow);
+            throw;
+        }
+        catch (LeaseLostException)
+        {
             throw;
         }
         catch (Exception ex)
@@ -120,7 +157,6 @@ internal sealed class WorkflowHandler(
 
             await statusWriteBuffer.Submit(workflow, CancellationToken.None);
 
-            StopActivity(workflow);
             return;
         }
 
@@ -141,12 +177,10 @@ internal sealed class WorkflowHandler(
             RecordWorkflowTotalTime(workflow);
 
             workflow.EngineActivity?.Errored();
-            Metrics.WorkflowsFailed.Add(1);
+            Metrics.WorkflowsFailed.Add(1, ("reason", "execution"));
         }
 
         await statusWriteBuffer.Submit(workflow, ct);
-
-        StopActivity(workflow);
     }
 
     private async Task ProcessSteps(Workflow workflow, CancellationToken ct)
@@ -157,7 +191,6 @@ internal sealed class WorkflowHandler(
             var step = workflow.Steps[i];
             var previous = i > 0 ? workflow.Steps[i - 1] : null;
 
-            // Step is already complete (from a previous processing round after requeue)
             if (step.Status.IsDone())
             {
                 continue;
@@ -185,14 +218,9 @@ internal sealed class WorkflowHandler(
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                if (workflow.CancellationRequestedAt is not null)
-                {
-                    step.Status = PersistentItemStatus.Canceled;
-                }
-                else
-                {
-                    step.Status = PersistentItemStatus.Requeued;
-                }
+                step.Status = workflow.CancellationRequestedAt is not null
+                    ? PersistentItemStatus.Canceled
+                    : PersistentItemStatus.Requeued;
 
                 StopActivity(step);
                 throw;
@@ -451,4 +479,10 @@ internal static partial class WorkflowHandlerLogs
         "Failing step {Step} after {Retries} attempts. The operation produced a critical error which cannot be retried"
     )]
     internal static partial void FailingStepCritical(this ILogger<WorkflowHandler> logger, Step step, int retries);
+
+    [LoggerMessage(
+        LogLevel.Warning,
+        "Lease lost for workflow {Workflow} — another host has reclaimed it; exiting local processing without retry"
+    )]
+    internal static partial void WorkflowLeaseLost(this ILogger<WorkflowHandler> logger, Workflow workflow);
 }
