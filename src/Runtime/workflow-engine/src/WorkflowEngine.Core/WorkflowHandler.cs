@@ -83,7 +83,7 @@ internal sealed class WorkflowHandler(
             workflow.Status = PersistentItemStatus.Canceled;
             workflow.EngineActivity?.Errored(errorMessage: "Canceled before processing started");
 
-            Metrics.WorkflowsCanceled.Add(1);
+            Metrics.WorkflowsCanceled.Add(1, ("reason", "before_processing"));
             RecordWorkflowServiceTime(workflow);
             RecordWorkflowTotalTime(workflow);
 
@@ -119,13 +119,16 @@ internal sealed class WorkflowHandler(
                 if (workflow.CancellationRequestedAt is not null)
                 {
                     workflow.Status = PersistentItemStatus.Canceled;
-                    Metrics.WorkflowsCanceled.Add(1);
+                    Metrics.WorkflowsCanceled.Add(1, ("reason", "during_processing"));
                     RecordWorkflowServiceTime(workflow);
                     RecordWorkflowTotalTime(workflow);
                 }
                 else
                 {
                     workflow.Status = PersistentItemStatus.Requeued;
+                    Metrics.WorkflowsRequeued.Add(1, ("reason", "shutdown"));
+                    RecordWorkflowServiceTime(workflow);
+                    RecordWorkflowTotalTime(workflow);
                 }
             }
 
@@ -179,12 +182,21 @@ internal sealed class WorkflowHandler(
             workflow.EngineActivity?.Errored();
             Metrics.WorkflowsFailed.Add(1, ("reason", "execution"));
         }
+        else if (workflow.Status == PersistentItemStatus.Requeued)
+        {
+            RecordWorkflowServiceTime(workflow);
+            RecordWorkflowTotalTime(workflow);
+
+            Metrics.WorkflowsRequeued.Add(1, ("reason", "step_retry"));
+        }
 
         await statusWriteBuffer.Submit(workflow, ct);
     }
 
     private async Task ProcessSteps(Workflow workflow, CancellationToken ct)
     {
+        var queueAnchor = workflow.ExecutionStartedAt ?? throw new UnreachableException();
+
         for (int i = 0; i < workflow.Steps.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
@@ -198,7 +210,7 @@ internal sealed class WorkflowHandler(
 
             StartProcessStepActivity(workflow, step);
 
-            RecordStepQueueTime(workflow, step);
+            RecordStepQueueTime(step, queueAnchor);
 
             step.Status = PersistentItemStatus.Processing;
             step.ExecutionStartedAt = timeProvider.GetUtcNow();
@@ -243,8 +255,10 @@ internal sealed class WorkflowHandler(
             );
 
             RecordStepServiceTime(step);
-            RecordStepTotalTime(step, previous);
+            RecordStepTotalTime(step, queueAnchor);
             StopActivity(step);
+
+            queueAnchor = step.UpdatedAt ?? throw new UnreachableException();
 
             if (step.Status == PersistentItemStatus.Completed)
             {
@@ -410,15 +424,14 @@ internal sealed class WorkflowHandler(
 
     private void RecordWorkflowTotalTime(Workflow workflow)
     {
-        var scheduledStart = workflow.StartAt ?? workflow.CreatedAt;
-        var totalDuration = timeProvider.GetUtcNow().Subtract(scheduledStart).TotalSeconds;
+        var anchor = workflow.BackoffUntil ?? workflow.CreatedAt;
+        var totalDuration = timeProvider.GetUtcNow().Subtract(anchor).TotalSeconds;
         Metrics.WorkflowTotalTime.Record(totalDuration, workflow.GetHistorgramTags());
     }
 
-    private void RecordStepQueueTime(Workflow workflow, Step step)
+    private void RecordStepQueueTime(Step step, DateTimeOffset anchor)
     {
-        var latest = workflow.BackoffUntil ?? step.CreatedAt;
-        var queueDuration = timeProvider.GetUtcNow().Subtract(latest).TotalSeconds;
+        var queueDuration = timeProvider.GetUtcNow().Subtract(anchor).TotalSeconds;
         Metrics.StepQueueTime.Record(queueDuration, step.GetHistorgramTags());
     }
 
@@ -429,14 +442,10 @@ internal sealed class WorkflowHandler(
         Metrics.StepServiceTime.Record(serviceDuration, step.GetHistorgramTags());
     }
 
-    private void RecordStepTotalTime(Step currentStep, Step? previousStep)
+    private void RecordStepTotalTime(Step step, DateTimeOffset anchor)
     {
-        var totalDuration = timeProvider
-            .GetUtcNow()
-            .Subtract(previousStep?.UpdatedAt ?? currentStep.CreatedAt)
-            .TotalSeconds;
-
-        Metrics.StepTotalTime.Record(totalDuration, currentStep.GetHistorgramTags());
+        var totalDuration = timeProvider.GetUtcNow().Subtract(anchor).TotalSeconds;
+        Metrics.StepTotalTime.Record(totalDuration, step.GetHistorgramTags());
     }
 }
 
