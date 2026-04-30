@@ -25,9 +25,9 @@ public static class WorkflowMetadataConstants
         public const string IdempotencyKey = "Idempotency-Key";
 
         /// <summary>
-        /// Header carrying the correlation ID shared by all workflows in a batch.
+        /// Header carrying the collection key shared by all workflows in a batch.
         /// </summary>
-        public const string CorrelationId = "Correlation-Id";
+        public const string CollectionKey = "Collection-Key";
 
         /// <summary>
         /// Header carrying the workflow database ID.
@@ -53,6 +53,6 @@ public static class WorkflowMetadataConstants
         /// <summary>
         /// Query parameter carrying the correlation ID used for filtering.
         /// </summary>
-        public const string CorrelationId = "correlationId";
+        public const string CollectionKey = "collectionKey";
     }
 }
