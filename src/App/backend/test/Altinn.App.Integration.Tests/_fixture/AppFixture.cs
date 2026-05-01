@@ -389,23 +389,9 @@ public sealed partial class AppFixture : IAsyncDisposable
         if (!_appProcess.IsRunning())
             throw new InvalidOperationException($"App process exited before fixture reset.\n{GetAppLogs(_appProcess)}");
 
-    private static Dictionary<string, string?> CreateAppEnv()
-    {
-        return new()
-        {
-            { "DOTNET_ENVIRONMENT", "Development" },
-            { "AppSettings__OpenIdWellKnownEndpoint", $"{_localtestUrl}/authentication/api/v1/openid/" },
-            { "PlatformSettings__ApiStorageEndpoint", $"{_localtestUrl}/storage/api/v1/" },
-            { "PlatformSettings__ApiRegisterEndpoint", $"{_localtestUrl}/register/api/v1/" },
-            { "PlatformSettings__ApiProfileEndpoint", $"{_localtestUrl}/profile/api/v1/" },
-            { "PlatformSettings__ApiAuthenticationEndpoint", $"{_localtestUrl}/authentication/api/v1/" },
-            { "PlatformSettings__ApiAuthorizationEndpoint", $"{_localtestUrl}/authorization/api/v1/" },
-            { "PlatformSettings__ApiEventsEndpoint", $"{_localtestUrl}/events/api/v1/" },
-            { "PlatformSettings__ApiPdf2Endpoint", $"http://{PdfServiceHostname}:{PdfServicePort}/pdf" },
-            { "PlatformSettings__ApiNotificationEndpoint", $"{_localtestUrl}/notifications/api/v1/" },
-            { "PlatformSettings__ApiCorrespondenceEndpoint", $"{_localtestUrl}/correspondence/api/v1/" },
-            { "PlatformFrontendSettings__AuthenticationUrl", $"{_localtestUrl}/authentication/api/v1/authentication" },
-        };
+        using var response = await GetDirectAppClient()
+            .PostAsync("/test/fixture-configuration/reload", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
     }
 
     private static async Task<string> GenerateAppDirectory(
