@@ -124,7 +124,7 @@ func TestCheckForLegacyLocaltest(t *testing.T) {
 			client := mock.New()
 			tc.setup(client)
 
-			err := localtest.CheckForLegacyLocaltest(context.Background(), client, false)
+			err := localtest.CheckForLegacyLocaltest(context.Background(), client)
 
 			if tc.wantErr && err == nil {
 				t.Error("CheckForLegacyLocaltest() error = nil, want error")
@@ -136,28 +136,5 @@ func TestCheckForLegacyLocaltest(t *testing.T) {
 				t.Errorf("CheckForLegacyLocaltest() error = %v, want ErrLegacyLocaltestRunning", err)
 			}
 		})
-	}
-}
-
-func TestCheckForLegacyLocaltest_PgAdminOnlyCheckedWhenIncluded(t *testing.T) {
-	t.Parallel()
-
-	client := mock.New()
-	client.ContainerInspectFunc = func(_ context.Context, name string) (types.ContainerInfo, error) {
-		if name != localtest.ContainerPgAdmin {
-			return types.ContainerInfo{}, types.ErrContainerNotFound
-		}
-		return types.ContainerInfo{
-			State:  types.ContainerState{Running: true},
-			Labels: map[string]string{},
-		}, nil
-	}
-
-	if err := localtest.CheckForLegacyLocaltest(context.Background(), client, false); err != nil {
-		t.Fatalf("CheckForLegacyLocaltest(includePgAdmin=false) error = %v, want nil", err)
-	}
-	err := localtest.CheckForLegacyLocaltest(context.Background(), client, true)
-	if !errors.Is(err, localtest.ErrLegacyLocaltestRunning) {
-		t.Fatalf("CheckForLegacyLocaltest(includePgAdmin=true) error = %v, want ErrLegacyLocaltestRunning", err)
 	}
 }
