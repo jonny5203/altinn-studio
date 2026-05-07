@@ -114,7 +114,7 @@ export const DropdownCaption = ({ calendarMonth, id, minDate, maxDate }: Dropdow
             icon={true}
             color='second'
             variant='tertiary'
-            aria-label={langAsString('general.close')}
+            aria-label={translationKey('general.close')}
             onClick={onClose}
           >
             <XMarkIcon />

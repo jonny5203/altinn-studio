@@ -102,11 +102,11 @@ public class TranslationServiceInstanceTests
 
         await using var provider = fixture.BuildServiceProvider();
 
-        // Override the mock to return null instead of throwing for GetLayoutModelForTask
+        // Override the mock to return null instead of throwing for GetLayoutModelForFolder
         // Must be done after BuildServiceProvider() since TryAddCommonServices sets up the default mock
         fixture
             .Mock<IAppResources>()
-            .Setup(a => a.GetLayoutModelForTask(It.IsAny<string>()))
+            .Setup(a => a.GetLayoutModelForFolder(It.IsAny<string>()))
             .Returns(null as LayoutModel);
 
         var dataAccessor = await provider.CreateInstanceDataUnitOfWork(
@@ -147,11 +147,11 @@ public class TranslationServiceInstanceTests
 
         await using var provider = fixture.BuildServiceProvider();
 
-        // Override the mock to return null instead of throwing for GetLayoutModelForTask
+        // Override the mock to return null instead of throwing for GetLayoutModelForFolder
         // Must be done after BuildServiceProvider() since TryAddCommonServices sets up the default mock
         fixture
             .Mock<IAppResources>()
-            .Setup(a => a.GetLayoutModelForTask(It.IsAny<string>()))
+            .Setup(a => a.GetLayoutModelForFolder(It.IsAny<string>()))
             .Returns(null as LayoutModel);
 
         var dataAccessor = await provider.CreateInstanceDataUnitOfWork(

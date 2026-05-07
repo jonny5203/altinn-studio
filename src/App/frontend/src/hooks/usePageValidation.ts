@@ -1,13 +1,13 @@
 import { useMemo } from 'react';
 
-import { useLayoutCollection, useLayoutLookups } from 'src/features/form/layout/LayoutsContext';
-import { usePageSettings } from 'src/features/form/layoutSettings/LayoutSettingsContext';
+import { usePageSettings } from 'src/features/form/layoutSettings/processLayoutSettings';
+import { FormBootstrap } from 'src/features/formBootstrap/FormBootstrap';
 import type { PageValidation } from 'src/layout/common.generated';
 
 export function useEffectivePageValidation(pageKey: string): {
   getPageValidation: () => PageValidation | undefined;
 } {
-  const layoutCollection = useLayoutCollection();
+  const layoutCollection = FormBootstrap.useLayoutCollection();
   const effectivePageValidation = usePageSettings().validationOnNavigation;
 
   return useMemo(() => {
@@ -26,7 +26,7 @@ export function useEffectivePageValidation(pageKey: string): {
 }
 
 export function usePageValidation(componentId: string) {
-  const layoutLookups = useLayoutLookups();
+  const layoutLookups = FormBootstrap.useLayoutLookups();
   const pageKey = layoutLookups.componentToPage[componentId];
 
   return useEffectivePageValidation(pageKey ?? '');

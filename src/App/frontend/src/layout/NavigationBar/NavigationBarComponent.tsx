@@ -13,12 +13,12 @@ import { useOnPageNavigationValidation } from 'src/features/validation/callbacks
 import { useNavigationParam } from 'src/hooks/navigation';
 import { useIsMobile } from 'src/hooks/useDeviceWidths';
 import { useNavigatePage } from 'src/hooks/useNavigatePage';
+import { usePageValidation } from 'src/hooks/usePageValidation';
 import {
   useCurrentProcessKey,
   useIsAnyProcessing,
   useProcessingMutationWithKey,
 } from 'src/hooks/useProcessingMutation';
-import { usePageValidation } from 'src/hooks/usePageValidation';
 import { ComponentStructureWrapper } from 'src/layout/ComponentStructureWrapper';
 import classes from 'src/layout/NavigationBar/NavigationBarComponent.module.css';
 import { useItemWhenType } from 'src/utils/layout/useNodeItem';

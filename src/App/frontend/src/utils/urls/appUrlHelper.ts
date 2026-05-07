@@ -17,11 +17,6 @@ export const getInstantiateUrl = (language?: string) => {
 
 export const getSetSelectedPartyUrl = (partyId: string | number) => `${appPath}/api/v1/parties/${partyId}`;
 
-export const getPaymentInformationUrl = (instanceId: string, language?: string) => {
-  const queryString = getQueryStringFromObject({ language });
-  return `${origin}/${org}/${app}/instances/${instanceId}/payment${queryString}`;
-};
-
 export const getPaymentInformationForTaskUrl = (instanceId: string, language?: string, taskId?: string) => {
   const queryString = getQueryStringFromObject({ language, taskId });
   return `${origin}/${org}/${app}/instances/${instanceId}/payment${queryString}`;

@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { screen, waitFor, waitForElementToBeRemoved } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
+import userEvent from '@testing-library/user-event';
 
 import { getFormBootstrapMock } from 'src/__mocks__/getFormBootstrapMock';
 import { defaultDataTypeMock, getUiConfigMock } from 'src/__mocks__/getUiConfigMock';
@@ -15,8 +15,7 @@ interface RenderProps extends Omit<Partial<RenderGenericComponentTestProps<'Navi
   component: CompNavigationButtonsExternal;
   currentPageId?: 'layout1' | 'layout2';
   pageValidation?: PageValidation;
-  formDataOverride?: () => Promise<Record<string, unknown>>;
-  schemaOverride?: () => Promise<Record<string, unknown>>;
+  formDataOverride?: object;
   inputRequired?: boolean;
 }
 
@@ -32,6 +31,7 @@ describe('NavigationButtons', () => {
     showBackButton: true,
     textResourceBindings: {},
   };
+
   const navButton3: CompNavigationButtonsExternal = {
     id: 'nav-button3',
     type: 'NavigationButtons',
@@ -46,15 +46,8 @@ describe('NavigationButtons', () => {
     currentPageId = 'layout1',
     pageValidation,
     formDataOverride,
-    schemaOverride,
     inputRequired = false,
   }: RenderProps) => {
-    const baseQueries = {
-      fetchLayoutSets: async () => ({ sets: [{ dataType: 'test-data-model', id: 'message', tasks: ['Task_1'] }] }),
-      fetchLayoutSettings: async () => ({ pages: { order: ['layout1', 'layout2'] } }),
-    };
-
-  const render = async ({ component, genericProps, currentPageId = 'layout1' }: RenderProps) => {
     window.altinnAppGlobalData.ui = getUiConfigMock(
       (obj) => (obj.folders.Task_1.pages = { order: ['layout1', 'layout2'] }),
     );
@@ -68,6 +61,9 @@ describe('NavigationButtons', () => {
       queries: {
         fetchFormBootstrapForInstance: async () =>
           getFormBootstrapMock((obj) => {
+            if (formDataOverride) {
+              obj.dataModels[defaultDataTypeMock].initialData = formDataOverride;
+            }
             obj.layouts = {
               layout1: {
                 data: {
@@ -79,11 +75,12 @@ describe('NavigationButtons', () => {
                         simpleBinding: { dataType: defaultDataTypeMock, field: 'mockDataBinding1' },
                       },
                       readOnly: false,
-                      required: false,
+                      required: inputRequired,
                       textResourceBindings: {},
                     },
                     ...(currentPageId === 'layout1' ? [component] : []),
                   ],
+                  ...(pageValidation && { validationOnNavigation: pageValidation }),
                 },
               },
               layout2: {
@@ -96,7 +93,7 @@ describe('NavigationButtons', () => {
                         simpleBinding: { dataType: defaultDataTypeMock, field: 'mockDataBinding2' },
                       },
                       readOnly: false,
-                      required: false,
+                      required: inputRequired,
                       textResourceBindings: {},
                     },
                     ...(currentPageId === 'layout2' ? [component] : []),
@@ -137,7 +134,7 @@ describe('NavigationButtons', () => {
     await render({
       component: navButton1,
       pageValidation: { page: 'current', show: ['Required'] },
-      formDataOverride: async () => ({}),
+      formDataOverride: {},
       inputRequired: true,
     });
 
@@ -152,7 +149,7 @@ describe('NavigationButtons', () => {
     await render({
       component: navButton3,
       pageValidation: { page: 'current', show: ['Required'] },
-      formDataOverride: async () => ({}),
+      formDataOverride: {},
       inputRequired: true,
     });
 
@@ -166,7 +163,7 @@ describe('NavigationButtons', () => {
   test('button validation is used when page has no validation config', async () => {
     await render({
       component: navButton3,
-      formDataOverride: async () => ({}),
+      formDataOverride: {},
       inputRequired: true,
     });
 

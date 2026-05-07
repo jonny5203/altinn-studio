@@ -11,12 +11,12 @@ import { Lang } from 'src/features/language/Lang';
 import { useLanguage } from 'src/features/language/useLanguage';
 import { useOnPageNavigationValidation } from 'src/features/validation/callbacks/onPageNavigationValidation';
 import { useNavigatePage, useNextPageKey, usePreviousPageKey } from 'src/hooks/useNavigatePage';
+import { usePageValidation } from 'src/hooks/usePageValidation';
 import {
   useCurrentProcessKey,
   useIsAnyProcessing,
   useProcessingMutationWithKey,
 } from 'src/hooks/useProcessingMutation';
-import { usePageValidation } from 'src/hooks/usePageValidation';
 import { ComponentStructureWrapper } from 'src/layout/ComponentStructureWrapper';
 import classes from 'src/layout/NavigationButtons/NavigationButtonsComponent.module.css';
 import { smartLowerCaseFirst } from 'src/utils/formComponentUtils';

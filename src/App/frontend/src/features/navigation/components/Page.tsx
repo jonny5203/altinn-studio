@@ -9,7 +9,6 @@ import { SubformsForPage } from 'src/features/navigation/components/SubformsForP
 import { useNavigateToPageWithValidation } from 'src/features/navigation/useNavigateToPageWithValidation';
 import { useGetNavigationIsPrevented } from 'src/features/navigation/utils';
 import { useNavigationParam } from 'src/hooks/navigation';
-import { useNavigatePage } from 'src/hooks/useNavigatePage';
 import { useProcessingMutation } from 'src/hooks/useProcessingMutation';
 
 export function Page({

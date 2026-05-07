@@ -3,28 +3,28 @@ import { makeLikertChildId } from 'src/layout/Likert/Generator/makeLikertChildId
 import type { CompExternal, ILayoutCollection, ILayouts } from 'src/layout/layout';
 import type { IExpandedWidthLayouts, IHiddenLayoutsExternal, IPreventNavigationLayouts } from 'src/types';
 
-export function processLayouts(input: ILayoutCollection, dataModelType: string) {
-  const layouts: ILayouts = {};
+export function processLayouts(layouts: ILayoutCollection, dataModelType: string) {
+  const processedLayouts: ILayouts = {};
   const hiddenLayoutsExpressions: IHiddenLayoutsExternal = {};
   const expandedWidthLayouts: IExpandedWidthLayouts = {};
   const preventNavigationLayouts: IPreventNavigationLayouts = {};
 
-  for (const key of Object.keys(input)) {
-    const file = input[key];
-    layouts[key] = cleanLayout(file.data.layout, dataModelType);
+  for (const key of Object.keys(layouts)) {
+    const file = layouts[key];
+    processedLayouts[key] = cleanLayout(file.data.layout, dataModelType);
     hiddenLayoutsExpressions[key] = file.data.hidden;
     expandedWidthLayouts[key] = file.data.expandedWidth;
     preventNavigationLayouts[key] = !!file.data.validationOnNavigation;
   }
 
-  removeDuplicateComponentIds(layouts);
-  addLikertItemToLayout(layouts);
+  removeDuplicateComponentIds(processedLayouts);
+  addLikertItemToLayout(processedLayouts);
 
   return {
     layouts,
+    processedLayouts,
     hiddenLayoutsExpressions,
     expandedWidthLayouts,
-    layoutCollection: input,
     preventNavigationLayouts,
   };
 }

@@ -12,11 +12,12 @@ import { usePayment } from 'src/features/payment/PaymentProvider';
 import { PaymentStatus } from 'src/features/payment/types';
 import { useBackoff } from 'src/features/process/feedback/Feedback';
 import { useIsSubformPage } from 'src/hooks/navigation';
+import { useNavigateToTask } from 'src/hooks/useNavigatePage';
 import { useIsAnyProcessing } from 'src/hooks/useProcessingMutation';
-import { TaskKeys, useNavigateToTask } from 'src/hooks/useNavigatePage';
 import { ComponentStructureWrapper } from 'src/layout/ComponentStructureWrapper';
 import classes from 'src/layout/Payment/PaymentComponent.module.css';
 import { PaymentDetailsTable } from 'src/layout/PaymentDetails/PaymentDetailsTable';
+import { TaskKeys } from 'src/routesBuilder';
 import { useItemWhenType } from 'src/utils/layout/useNodeItem';
 import type { PropsFromGenericComponent } from 'src/layout';
 

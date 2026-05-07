@@ -8,7 +8,7 @@ import type { Button } from '@digdir/designsystemet-react';
 
 import { ExprVal } from 'src/features/expressions/types';
 import { useUiConfigContext } from 'src/features/form/layout/UiConfigContext';
-import { usePageSettings } from 'src/features/form/layoutSettings/LayoutSettingsContext';
+import { usePageSettings } from 'src/features/form/layoutSettings/processLayoutSettings';
 import { Lang } from 'src/features/language/Lang';
 import { AppNavigation, AppNavigationHeading } from 'src/features/navigation/AppNavigation';
 import classes from 'src/features/navigation/PopoverNavigation.module.css';

@@ -13,6 +13,7 @@ import { ContextNotProvided } from 'src/core/contexts/context';
 import { useIsReceiptPage } from 'src/core/routing/useIsReceiptPage';
 import { FormStore } from 'src/features/form/FormContext';
 import { usePageGroups, usePageSettings } from 'src/features/form/layoutSettings/processLayoutSettings';
+import { FormBootstrap } from 'src/features/formBootstrap/FormBootstrap';
 import { useGetAltinnTaskType } from 'src/features/instance/useProcessQuery';
 import { ValidationMask } from 'src/features/validation';
 import { getVisibilityMask } from 'src/features/validation/utils';
@@ -156,13 +157,13 @@ export function useValidationsForPages(order: string[], shouldMarkWhenCompleted 
 //Prevents navigation to a page if there are pages between the current page and the target page that have validateOnNavigation enabled and contain validation errors.
 export function useGetNavigationIsPrevented() {
   const currentPageId = useNavigationParam('pageKey') ?? '';
-  const layoutCollection = useLayoutCollection();
+  const layoutCollection = FormBootstrap.useLayoutCollection();
   const globalValidationOnNavigation = usePageSettings().validationOnNavigation;
   const { order } = useNavigatePage();
-  const validationsSelector = NodesInternal.useLaxValidationsSelector();
-  const allNodeIds = NodesInternal.useLaxMemoSelector((state) => {
+  const validationsSelector = FormStore.nodes.useLaxValidationsSelector();
+  const allNodeIds = FormStore.raw.useLaxMemoSelector((state) => {
     const result = Object.fromEntries<string[]>(order.map((page) => [page, []]));
-    Object.values(state.nodeData).forEach((node) => result[node.pageKey]?.push(node.id));
+    Object.values(state.nodes.nodeData).forEach((node) => result[node.pageKey]?.push(node.id));
     return result;
   });
 

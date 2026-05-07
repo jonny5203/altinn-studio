@@ -453,20 +453,20 @@ describe('AppNavigation', () => {
 
   describe('navigationTitle', () => {
     async function renderHeading({ navigationTitle }: { navigationTitle?: string } = {}) {
+      window.altinnAppGlobalData.ui.folders.Task_1.pages.navigationTitle = navigationTitle;
+      if ('order' in window.altinnAppGlobalData.ui.folders.Task_1.pages) {
+        window.altinnAppGlobalData.ui.folders.Task_1.pages.order = ['first'];
+      }
       return renderWithInstanceAndLayout({
         renderer: () => <AppNavigationHeading />,
         initialPage: 'page1',
         queries: {
-          fetchLayoutSettings: async () =>
-            ({
-              pages: {
-                order: ['page1'],
-                ...(navigationTitle ? { navigationTitle } : {}),
-              },
-            }) as ILayoutSettings,
-          fetchLayouts: async () => ({
-            page1: { data: { layout: [] } } as ILayoutFile,
-          }),
+          fetchFormBootstrapForInstance: async () =>
+            getFormBootstrapMock((obj) => {
+              obj.layouts = {
+                page1: { data: { layout: [] } },
+              };
+            }),
         },
       });
     }

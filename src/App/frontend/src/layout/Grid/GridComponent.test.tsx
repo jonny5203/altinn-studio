@@ -2,6 +2,7 @@ import React from 'react';
 
 import { screen } from '@testing-library/react';
 
+import { getFormBootstrapMock } from 'src/__mocks__/getFormBootstrapMock';
 import { RenderGrid } from 'src/layout/Grid/GridComponent';
 import { renderGenericComponentTest } from 'src/test/renderWithProviders';
 import type { CompExternalExact } from 'src/layout/layout';
@@ -107,40 +108,43 @@ describe('GridComponent', () => {
         ],
       } as CompExternalExact<'Grid'>,
       queries: {
-        fetchLayouts: async () => ({
-          FormLayout: {
-            data: {
-              layout: [
-                {
-                  id: 'my-test-component-id',
-                  type: 'Grid',
-                  rows: [
+        fetchFormBootstrapForInstance: async () =>
+          getFormBootstrapMock((obj) => {
+            obj.layouts = {
+              FormLayout: {
+                data: {
+                  layout: [
                     {
-                      header: false,
-                      readOnly: false,
-                      cells: [
+                      id: 'my-test-component-id',
+                      type: 'Grid',
+                      rows: [
                         {
-                          component: 'grid-text',
-                          cellStyle: {
-                            colSpan: 3,
-                          },
+                          header: false,
+                          readOnly: false,
+                          cells: [
+                            {
+                              component: 'grid-text',
+                              cellStyle: {
+                                colSpan: 3,
+                              },
+                            },
+                          ],
                         },
                       ],
                     },
+                    {
+                      id: 'grid-text',
+                      type: 'Text',
+                      value: '',
+                      textResourceBindings: {
+                        title: 'accordion.title',
+                      },
+                    },
                   ],
                 },
-                {
-                  id: 'grid-text',
-                  type: 'Text',
-                  value: '',
-                  textResourceBindings: {
-                    title: 'accordion.title',
-                  },
-                },
-              ],
-            },
-          },
-        }),
+              },
+            };
+          }),
       },
     });
 

@@ -9,6 +9,7 @@ import { getFormBootstrapMock } from 'src/__mocks__/getFormBootstrapMock';
 import { getFormLayoutRepeatingGroupMock } from 'src/__mocks__/getFormLayoutGroupMock';
 import { defaultDataTypeMock } from 'src/__mocks__/getUiConfigMock';
 import { ALTINN_ROW_ID } from 'src/features/formData/types';
+import { IRawTextResource } from 'src/features/language/textResources';
 import {
   RepeatingGroupProvider,
   useRepeatingGroupRowState,
@@ -336,7 +337,7 @@ describe('RepeatingGroupTable', () => {
 
   const render = (
     layout = getLayout(group, components),
-    formData: Record<string, unknown> = {
+    formData: object = {
       'some-group': [
         { [ALTINN_ROW_ID]: uuidv4(), checkboxBinding: 'option.value', prop1: 'test row 0' },
         { [ALTINN_ROW_ID]: uuidv4(), checkboxBinding: 'option.value', prop1: 'test row 1' },
@@ -344,9 +345,10 @@ describe('RepeatingGroupTable', () => {
         { [ALTINN_ROW_ID]: uuidv4(), checkboxBinding: 'option.value', prop1: 'test row 3' },
       ],
     },
-    extraTextResources: { id: string; value: string }[] = [],
-  ) =>
-    renderWithInstanceAndLayout({
+    extraTextResources: IRawTextResource[] = [],
+  ) => {
+    window.altinnAppGlobalData.textResources!.resources = extraTextResources;
+    return renderWithInstanceAndLayout({
       renderer: (
         <RepeatingGroupProvider baseComponentId={group.id}>
           <LeakEditIndex />
@@ -357,17 +359,11 @@ describe('RepeatingGroupTable', () => {
         fetchFormBootstrapForInstance: async () =>
           getFormBootstrapMock((obj) => {
             obj.layouts = layout;
-            obj.dataModels[defaultDataTypeMock].initialData = {
-              'some-group': [
-                { [ALTINN_ROW_ID]: uuidv4(), checkBoxBinding: 'option.value', prop1: 'test row 0' },
-                { [ALTINN_ROW_ID]: uuidv4(), checkBoxBinding: 'option.value', prop1: 'test row 1' },
-                { [ALTINN_ROW_ID]: uuidv4(), checkBoxBinding: 'option.value', prop1: 'test row 2' },
-                { [ALTINN_ROW_ID]: uuidv4(), checkBoxBinding: 'option.value', prop1: 'test row 3' },
-              ],
-            };
+            obj.dataModels[defaultDataTypeMock].initialData = formData;
           }),
       },
     });
+  };
 });
 
 function LeakEditIndex() {
