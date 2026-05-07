@@ -19,6 +19,7 @@ import {
   getFormBootstrapUrlForInstance,
   getFormBootstrapUrlForStateless,
   getOrderDetailsUrl,
+  getPaymentInformationForTaskUrl,
   getPaymentInformationUrl,
   getPdfFormatUrl,
   getProcessNextUrl,
@@ -180,6 +181,12 @@ export const fetchPdfFormat = (instanceId: string, dataElementId: string): Promi
 
 export const fetchPaymentInformation = (instanceId: string, language?: string): Promise<PaymentResponsePayload> =>
   httpGet(getPaymentInformationUrl(instanceId, language));
+
+export const fetchPaymentInformationForTask = (
+  instanceId: string,
+  language?: string,
+  taskId?: string,
+): Promise<PaymentResponsePayload> => httpGet(getPaymentInformationForTaskUrl(instanceId, language, taskId));
 
 export const fetchOrderDetails = (instanceId: string, language?: string): Promise<OrderDetails> =>
   httpGet(getOrderDetailsUrl(instanceId, language));
