@@ -1,9 +1,8 @@
 import type { AriaAttributes } from 'react';
 
-import { useQuery } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
 
-import { useAppQueries } from 'src/core/contexts/AppQueriesProvider';
+import { useDataListQuery as useCoreDataListQuery } from 'src/core/queries/options';
 import { FormStore } from 'src/features/form/FormContext';
 import { FormBootstrap } from 'src/features/formBootstrap/FormBootstrap';
 import { useLaxInstanceId } from 'src/features/instance/InstanceContext';
@@ -28,7 +27,6 @@ export const useDataListQuery = (
   mapping?: IMapping,
   queryParameters?: Record<string, string>,
 ): UseQueryResult<IDataList> => {
-  const { fetchDataList } = useAppQueries();
   const selectedLanguage = useCurrentLanguage();
   const instanceId = useLaxInstanceId();
   const mappingResult = FormStore.data.useMapping(mapping, FormBootstrap.useDefaultDataType());
@@ -49,10 +47,7 @@ export const useDataListQuery = (
     sortDirection: ariaSortToSortDirection(sortDirection),
   });
 
-  return useQuery({
-    queryKey: ['fetchDataList', url],
-    queryFn: () => fetchDataList(url),
-  });
+  return useCoreDataListQuery(url);
 };
 
 function ariaSortToSortDirection(ariaSort: AriaAttributes['aria-sort']): SortDirection {

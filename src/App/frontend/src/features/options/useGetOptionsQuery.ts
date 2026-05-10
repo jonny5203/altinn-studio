@@ -1,8 +1,7 @@
-import { skipToken, useQuery } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { AxiosResponse } from 'axios';
 
-import { useAppQueries } from 'src/core/contexts/AppQueriesProvider';
+import { useOptionsQuery } from 'src/core/queries/options';
 import { FormStore } from 'src/features/form/FormContext';
 import { FormBootstrap } from 'src/features/formBootstrap/FormBootstrap';
 import { useLaxInstanceId } from 'src/features/instance/InstanceContext';
@@ -14,26 +13,19 @@ import type { IOptionInternal } from 'src/features/options/castOptionsToStrings'
 import type { IMapping, IQueryParameters } from 'src/layout/common.generated';
 
 export const useGetOptionsQuery = (
-  url: string,
+  url: string | undefined,
 ): UseQueryResult<{ data: IOptionInternal[]; headers: AxiosResponse['headers'] } | null> => {
-  const { fetchOptions } = useAppQueries();
-  return useQuery({
-    queryKey: ['fetchOptions', url],
-    queryFn: url
-      ? async () => {
-          const result = await fetchOptions(url);
-          if (!result) {
-            return null;
-          }
+  const result = useOptionsQuery(url);
 
-          return {
-            headers: result.headers,
-            data: castOptionsToStrings(result.data),
-          };
+  return {
+    ...result,
+    data: result.data
+      ? {
+          headers: result.data.headers,
+          data: castOptionsToStrings(result.data.data),
         }
-      : skipToken,
-    enabled: !!url,
-  });
+      : result.data,
+  } as UseQueryResult<{ data: IOptionInternal[]; headers: AxiosResponse['headers'] } | null>;
 };
 
 export const useGetOptionsUrl = (
