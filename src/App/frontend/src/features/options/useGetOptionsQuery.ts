@@ -12,21 +12,13 @@ import { getOptionsUrl } from 'src/utils/urls/appUrlHelper';
 import type { IOptionInternal } from 'src/features/options/castOptionsToStrings';
 import type { IMapping, IQueryParameters } from 'src/layout/common.generated';
 
-export const useGetOptionsQuery = (
-  url: string | undefined,
-): UseQueryResult<{ data: IOptionInternal[]; headers: AxiosResponse['headers'] } | null> => {
-  const result = useOptionsQuery(url);
+type OptionsQueryResult = { data: IOptionInternal[]; headers: AxiosResponse['headers'] };
 
-  return {
-    ...result,
-    data: result.data
-      ? {
-          headers: result.data.headers,
-          data: castOptionsToStrings(result.data.data),
-        }
-      : result.data,
-  } as UseQueryResult<{ data: IOptionInternal[]; headers: AxiosResponse['headers'] } | null>;
-};
+export const useGetOptionsQuery = (url: string | undefined): UseQueryResult<OptionsQueryResult | null> =>
+  useOptionsQuery(url, (result): OptionsQueryResult | null => ({
+    headers: result.headers,
+    data: castOptionsToStrings(result.data),
+  }));
 
 export const useGetOptionsUrl = (
   optionsId: string | undefined,
