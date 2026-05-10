@@ -164,8 +164,6 @@ export const doPostStatelessFormData = async (
 export const fetchLogo = async (): Promise<string> =>
   (await axios.get(GlobalData.platformFrontendSettings.altinnLogoUrl)).data;
 
-export const fetchProcessState = (instanceId: string): Promise<IProcess> => httpGet(getProcessStateUrl(instanceId));
-
 export const fetchRefreshJwtToken = (): Promise<unknown> => httpGet(refreshJwtTokenUrl);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
