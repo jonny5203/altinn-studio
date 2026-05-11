@@ -11,6 +11,8 @@ import (
 	"altinn.studio/studioctl/internal/config"
 )
 
+const testUserAgent = "studioctl/v1.2.3"
+
 func TestResolveLatestStudioctlVersion(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -60,6 +62,9 @@ func TestResolveLatestStudioctlVersion(t *testing.T) {
 					if r.URL.Path != "/repos/Altinn/altinn-studio/releases" {
 						t.Fatalf("unexpected path: %s", r.URL.Path)
 					}
+					if got := r.Header.Get("User-Agent"); got != testUserAgent {
+						t.Fatalf("User-Agent = %q, want %s", got, testUserAgent)
+					}
 					if _, err := w.Write([]byte(tc.body)); err != nil {
 						t.Fatalf("write response: %v", err)
 					}
@@ -67,11 +72,10 @@ func TestResolveLatestStudioctlVersion(t *testing.T) {
 			)
 			defer server.Close()
 
-			got, err := resolveLatestStudioctlVersionFromBase(
+			got, err := newHTTPDownloader(config.NewVersion("studioctl/v1.2.3")).resolveLatestStudioctlVersionFromBase(
 				context.Background(),
 				"Altinn/altinn-studio",
 				server.URL+"/repos",
-				config.NewVersion("test-version"),
 			)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("resolveLatestStudioctlVersion() error = %v, wantErr %v", err, tc.wantErr)
@@ -90,6 +94,9 @@ func TestResolveLatestStudioctlVersion_Paginates(t *testing.T) {
 			requests++
 			if r.URL.Path != "/repos/Altinn/altinn-studio/releases" {
 				t.Fatalf("unexpected path: %s", r.URL.Path)
+			}
+			if got := r.Header.Get("User-Agent"); got != testUserAgent {
+				t.Fatalf("User-Agent = %q, want %s", got, testUserAgent)
 			}
 
 			page := r.URL.Query().Get("page")
@@ -130,11 +137,10 @@ func TestResolveLatestStudioctlVersion_Paginates(t *testing.T) {
 	)
 	defer server.Close()
 
-	got, err := resolveLatestStudioctlVersionFromBase(
+	got, err := newHTTPDownloader(config.NewVersion("studioctl/v1.2.3")).resolveLatestStudioctlVersionFromBase(
 		context.Background(),
 		"Altinn/altinn-studio",
 		server.URL+"/repos",
-		config.NewVersion("test-version"),
 	)
 	if err != nil {
 		t.Fatalf("resolveLatestStudioctlVersion() error = %v", err)
