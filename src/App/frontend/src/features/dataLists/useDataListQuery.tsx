@@ -4,7 +4,6 @@ import type { UseQueryResult } from '@tanstack/react-query';
 
 import { useDataListQuery as useCoreDataListQuery } from 'src/core/queries/options';
 import { FormStore } from 'src/features/form/FormContext';
-import { FormBootstrap } from 'src/features/formBootstrap/FormBootstrap';
 import { useLaxInstanceId } from 'src/features/instance/InstanceContext';
 import { useCurrentLanguage } from 'src/features/language/LanguageProvider';
 import { getDataListsUrl } from 'src/utils/urls/appUrlHelper';
@@ -29,7 +28,7 @@ export const useDataListQuery = (
 ): UseQueryResult<IDataList> => {
   const selectedLanguage = useCurrentLanguage();
   const instanceId = useLaxInstanceId();
-  const mappingResult = FormStore.data.useMapping(mapping, FormBootstrap.useDefaultDataType());
+  const mappingResult = FormStore.data.useMapping(mapping, FormStore.bootstrap.useDefaultDataType());
   const { pageSize, pageNumber, sortColumn, sortDirection } = filter || {};
 
   const url = getDataListsUrl({
