@@ -19,24 +19,24 @@ import (
 
 var errReplacementTestRuntimeUnavailable = errors.New("container runtime unavailable")
 var errSelfTransitionTestStatus = errors.New("status failed")
-var errStopFailed = errors.New("stop failed")
+var errSelfTransitionStopFailed = errors.New("stop failed")
 var errMigrationFailed = errors.New("migration failed")
 
-const testAppID = "ttd/app"
+const selfTransitionTestAppID = "ttd/app"
 
 func TestSelfTransitionPrepareStopsAppsBeforeLocaltestAndAppManager(t *testing.T) {
 	t.Parallel()
 
-	cfg := testConfig(t)
+	cfg := selfTransitionTestConfig(t)
 	processID := 123
 	var order []string
-	client := &fakeAppRuntimeClient{
+	client := &fakeSelfTransitionAppRuntimeClient{
 		status: &appmanager.Status{
 			StudioctlPath: "/old/studioctl",
 			Apps: []appmanager.DiscoveredApp{
 				{
 					ProcessID: &processID,
-					AppID:     testAppID,
+					AppID:     selfTransitionTestAppID,
 					BaseURL:   "http://localhost:5005",
 				},
 			},
@@ -77,19 +77,19 @@ func TestSelfTransitionPrepareStopsAppsBeforeLocaltestAndAppManager(t *testing.T
 	if !state.appManagerWasRunning || state.previousStudioctlPath != "/old/studioctl" {
 		t.Fatalf("state = %+v, want running app-manager with previous studioctl path", state)
 	}
-	if len(client.unregistered) != 1 || client.unregistered[0] != testAppID {
-		t.Fatalf("unregistered = %+v, want %s", client.unregistered, testAppID)
+	if len(client.unregistered) != 1 || client.unregistered[0] != selfTransitionTestAppID {
+		t.Fatalf("unregistered = %+v, want %s", client.unregistered, selfTransitionTestAppID)
 	}
 }
 
 func TestSelfTransitionStatusFailureFails(t *testing.T) {
 	t.Parallel()
 
-	cfg := testConfig(t)
+	cfg := selfTransitionTestConfig(t)
 	transition := &Transition{
 		cfg: cfg,
 		out: ui.NewOutput(&bytes.Buffer{}, io.Discard, true),
-		appClient: &fakeAppRuntimeClient{
+		appClient: &fakeSelfTransitionAppRuntimeClient{
 			statusErr: errSelfTransitionTestStatus,
 		},
 		containerClient: func(context.Context) (containerruntime.ContainerClient, error) {
@@ -116,15 +116,15 @@ func TestSelfTransitionAppStopFailureFails(t *testing.T) {
 	processID := 123
 	newTransition := func() *Transition {
 		return &Transition{
-			cfg: testConfig(t),
+			cfg: selfTransitionTestConfig(t),
 			out: ui.NewOutput(&bytes.Buffer{}, io.Discard, true),
-			appClient: &fakeAppRuntimeClient{
+			appClient: &fakeSelfTransitionAppRuntimeClient{
 				status: &appmanager.Status{
 					StudioctlPath: "/old/studioctl",
 					Apps: []appmanager.DiscoveredApp{
 						{
 							ProcessID: &processID,
-							AppID:     testAppID,
+							AppID:     selfTransitionTestAppID,
 							BaseURL:   "http://localhost:5005",
 						},
 					},
@@ -134,7 +134,7 @@ func TestSelfTransitionAppStopFailureFails(t *testing.T) {
 				return nil, errReplacementTestRuntimeUnavailable
 			},
 			stopProcess: func(context.Context, int) error {
-				return errStopFailed
+				return errSelfTransitionStopFailed
 			},
 			shutdown: func(context.Context, *config.Config) (<-chan error, error) {
 				done := make(chan error, 1)
@@ -146,18 +146,17 @@ func TestSelfTransitionAppStopFailureFails(t *testing.T) {
 
 	if _, err := newTransition().Prepare(t.Context()); !errors.Is(
 		err,
-		errStopFailed,
+		errSelfTransitionStopFailed,
 	) {
 		t.Fatalf("Prepare() required app stop error = %v, want stop error", err)
 	}
 }
 
-func TestSelfTransitionRunsMigrationsBeforeRestart(t *testing.T) {
+func TestSelfTransitionRunsMigrations(t *testing.T) {
 	t.Parallel()
 
-	cfg := testConfig(t)
+	cfg := selfTransitionTestConfig(t)
 	var order []string
-	var restartedPath string
 	transition := &Transition{
 		cfg: cfg,
 		out: ui.NewOutput(&bytes.Buffer{}, io.Discard, true),
@@ -165,37 +164,22 @@ func TestSelfTransitionRunsMigrationsBeforeRestart(t *testing.T) {
 			order = append(order, "migrations")
 			return nil
 		},
-		start: func(_ context.Context, _ *config.Config, _ string, studioctlPath string) error {
-			order = append(order, "app-manager")
-			restartedPath = studioctlPath
-			return nil
-		},
 	}
 
 	if err := transition.RunMigrations(t.Context()); err != nil {
 		t.Fatalf("RunMigrations() error = %v", err)
 	}
-	if err := transition.RestartIfNeeded(
-		t.Context(),
-		TransitionState{appManagerWasRunning: true, previousStudioctlPath: "/old/studioctl"},
-		"/new/studioctl",
-	); err != nil {
-		t.Fatalf("RestartIfNeeded() error = %v", err)
-	}
 
-	wantOrder := []string{"migrations", "app-manager"}
+	wantOrder := []string{"migrations"}
 	if !reflect.DeepEqual(order, wantOrder) {
 		t.Fatalf("order = %+v, want %+v", order, wantOrder)
-	}
-	if restartedPath != "/new/studioctl" {
-		t.Fatalf("restartedPath = %q, want new path", restartedPath)
 	}
 }
 
 func TestSelfTransitionResetEnvsRemovesLocaltestData(t *testing.T) {
 	t.Parallel()
 
-	cfg := testConfig(t)
+	cfg := selfTransitionTestConfig(t)
 	localtestDataDir := filepath.Join(cfg.DataDir, "AltinnPlatformLocal")
 	if err := os.MkdirAll(localtestDataDir, 0o755); err != nil {
 		t.Fatalf("create localtest data dir: %v", err)
@@ -220,20 +204,15 @@ func TestSelfTransitionResetEnvsRemovesLocaltestData(t *testing.T) {
 	assertSelfTransitionCallRecorded(t, client.Calls, "VolumeRemove")
 }
 
-func TestSelfTransitionMigrationFailureDoesNotRestart(t *testing.T) {
+func TestSelfTransitionMigrationFailureReturnsError(t *testing.T) {
 	t.Parallel()
 
-	cfg := testConfig(t)
-	var restarted bool
+	cfg := selfTransitionTestConfig(t)
 	transition := &Transition{
 		cfg: cfg,
 		out: ui.NewOutput(&bytes.Buffer{}, io.Discard, true),
 		runMigrations: func(context.Context, *config.Config) error {
 			return errMigrationFailed
-		},
-		start: func(context.Context, *config.Config, string, string) error {
-			restarted = true
-			return nil
 		},
 	}
 
@@ -241,15 +220,12 @@ func TestSelfTransitionMigrationFailureDoesNotRestart(t *testing.T) {
 	if !errors.Is(err, errMigrationFailed) {
 		t.Fatalf("RunMigrations() error = %v, want migration failure", err)
 	}
-	if restarted {
-		t.Fatal("app-manager restarted after migration failure")
-	}
 }
 
 func TestSelfTransitionRestoreUsesPreviousStudioctlPath(t *testing.T) {
 	t.Parallel()
 
-	cfg := testConfig(t)
+	cfg := selfTransitionTestConfig(t)
 	var restartedPath string
 	transition := &Transition{
 		cfg: cfg,
@@ -271,22 +247,29 @@ func TestSelfTransitionRestoreUsesPreviousStudioctlPath(t *testing.T) {
 	}
 }
 
-type fakeAppRuntimeClient struct {
+type fakeSelfTransitionAppRuntimeClient struct {
 	status       *appmanager.Status
 	statusErr    error
 	unregistered []string
 }
 
-func (f *fakeAppRuntimeClient) Status(context.Context) (*appmanager.Status, error) {
+func (f *fakeSelfTransitionAppRuntimeClient) Status(context.Context) (*appmanager.Status, error) {
 	return f.status, f.statusErr
 }
 
-func (f *fakeAppRuntimeClient) UnregisterApp(_ context.Context, appID string) error {
+func (f *fakeSelfTransitionAppRuntimeClient) UnregisterApp(_ context.Context, appID string) error {
 	f.unregistered = append(f.unregistered, appID)
 	return nil
 }
 
-func testConfig(t *testing.T) *config.Config {
+func (f *fakeSelfTransitionAppRuntimeClient) UpgradeApp(
+	context.Context,
+	appmanager.AppUpgrade,
+) (appmanager.AppUpgradeResult, error) {
+	return appmanager.AppUpgradeResult{}, nil
+}
+
+func selfTransitionTestConfig(t *testing.T) *config.Config {
 	t.Helper()
 
 	cfg, err := config.New(config.Flags{Home: t.TempDir(), SocketDir: "", Verbose: false}, "test-version")
