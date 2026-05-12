@@ -11,9 +11,13 @@ Section ordering: Added, Changed, Fixed, Removed, Security, Deprecated.
 ### Changed
 
 - Breaking: make `--follow` default to `false` for log commands.
+- Breaking: rename `studioctl servers` to `studioctl server`.
+- Rename `app-manager` to `studioctl-server`, including install/update migration cleanup of legacy runtime files, installed payload, and logs.
+- Show progress while `app run --mode container` pulls/builds and starts the app container.
 
 ### Fixed
 
+- Redirect unauthenticated app URLs opened from `studioctl app run` through the localtest login page.
 - Keep running apps visible in localtest after restarting the localtest environment.
 - Improve localtest resource reconciliation so `env up` removes managed resources that are no longer requested, such as pgAdmin or monitoring, without restarting unchanged core containers.
 
